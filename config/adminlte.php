@@ -14,7 +14,7 @@ return [
     |
     */
 
-    'title'                                   => 'Sistema LDAP',
+    'title'                                   => 'Portal - Obras Estaduais',
     'title_prefix'                            => '',
     'title_postfix'                           => '',
 
@@ -30,8 +30,13 @@ return [
     |
     */
 
-    'use_ico_only'                            => false,
+    'use_ico_only'                            => true,
     'use_full_favicon'                        => false,
+
+    'favicon' => [
+        'path' => 'images/logoPortal.png',
+        'type' => 'image/png',
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -63,12 +68,12 @@ return [
     |
     */
 
-    'logo'                                    => '<b>Sistema</b>LDAP',
-    'logo_img'                                => 'vendor/adminlte/dist/img/AdminLTELogo.png',
-    'logo_img_class'                          => 'brand-image img-circle elevation-3',
-    'logo_img_xl'                             => null,
-    'logo_img_xl_class'                       => 'brand-image-xs',
-    'logo_img_alt'                            => 'Sistema LDAP',
+    'logo' => 'Obras Estaduais',
+    'logo_img' => 'images/logoPortal.png',
+    'logo_img_class' => 'brand-image img elevation-3',
+    'logo_img_xl' => null,
+    'logo_img_xl_class' => 'brand-image-xs',
+    'logo_img_alt' => 'Paranacidade',
 
     /*
     |--------------------------------------------------------------------------
@@ -83,13 +88,13 @@ return [
     |
     */
 
-    'auth_logo'                               => [
+    'auth_logo' => [
         'enabled' => false,
-        'img'     => [
-            'path'   => 'vendor/adminlte/dist/img/AdminLTELogo.png',
-            'alt'    => 'Auth Logo',
-            'class'  => '',
-            'width'  => 50,
+        'img' => [
+            'path' => 'images/loginPortalObrasEstaduais.png',
+            'alt' => 'Auth Logo',
+            'class' => '',
+            'width' => 50,
             'height' => 50,
         ],
     ],
@@ -109,14 +114,13 @@ return [
     |
     */
 
-    'preloader'                               => [
+    'preloader' => [
         'enabled' => true,
-        'mode'    => 'fullscreen',
-        'img'     => [
-            'path'   => 'vendor/adminlte/dist/img/AdminLTELogo.png',
-            'alt'    => 'AdminLTE Preloader Image',
+        'img' => [
+            'path' => 'images/logoPortal.png',
+            'alt' => 'Paranacidade',
             'effect' => 'animation__shake',
-            'width'  => 60,
+            'width' => 60,
             'height' => 60,
         ],
     ],

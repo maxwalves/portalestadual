@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Controle de Fluxo de Obras - Paraná</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.2rem;
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            margin-bottom: 2rem;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+            font-size: 2rem;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+
+        .requirements-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .requirement-card {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.3s ease;
+        }
+
+        .requirement-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .requirement-card h3 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        .requirement-card ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .requirement-card li {
+            padding: 0.3rem 0;
+            position: relative;
+            padding-left: 1.5rem;
+        }
+
+        .requirement-card li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .workflow-container {
+            margin-top: 2rem;
+        }
+
+        .workflow {
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border: 2px solid #e9ecef;
+        }
+
+        .workflow h3 {
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+            text-align: center;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .workflow-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .workflow-step {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .step-box {
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 1rem;
+            min-width: 200px;
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .step-box:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .step-box.actor {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-weight: bold;
+        }
+
+        .step-box.action {
+            background: #e8f4f8;
+            border-color: #17a2b8;
+        }
+
+        .module-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 0.8rem;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .module-type {
+            background: #6c757d;
+            color: white;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 0.3rem;
+        }
+
+        .module-type.envio { background: #28a745; }
+        .module-type.analise { background: #fd7e14; }
+        .module-type.assinatura { background: #6f42c1; }
+
+        .step-box.document {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+
+        .arrow {
+            font-size: 2rem;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .arrow-down {
+            transform: rotate(90deg);
+            margin: 0.5rem 0;
+            text-align: center;
+        }
+
+        .actors-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .actor-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease;
+        }
+
+        .actor-card:hover {
+            transform: translateY(-8px);
+        }
+
+        .actor-card h3 {
+            margin-bottom: 1rem;
+            font-size: 1.4rem;
+        }
+
+        .actor-card p {
+            opacity: 0.9;
+            line-height: 1.5;
+        }
+
+        .tech-stack {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        .tech-item {
+            background: #f8f9fa;
+            padding: 1rem 2rem;
+            border-radius: 25px;
+            border: 2px solid #667eea;
+            font-weight: bold;
+            color: #2c3e50;
+            transition: all 0.3s ease;
+        }
+
+        .tech-item:hover {
+            background: #667eea;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        @media (max-width: 768px) {
+            .workflow-step {
+                flex-direction: column;
+            }
+            
+            .arrow {
+                transform: rotate(90deg);
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+        }
+
+        .benefits {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .benefit-item {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .benefit-item h4 {
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Sistema de Controle de Fluxo de Obras</h1>
+            <p>Estado do Paraná - Plataforma Unificada de Gestão</p>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Objetivo do Sistema</h2>
+            <p style="font-size: 1.1rem; margin-bottom: 1rem;">
+                Desenvolver uma plataforma centralizada para controlar e acompanhar o fluxo de obras públicas do Estado do Paraná, 
+                integrando todos os atores envolvidos em um processo digital único e personalizável.
+            </p>
+            <div class="benefits">
+                <div class="benefit-item">
+                    <h4>🚀 Agilidade</h4>
+                    <p>Redução de tempo nos processos</p>
+                </div>
+                <div class="benefit-item">
+                    <h4>📊 Transparência</h4>
+                    <p>Acompanhamento em tempo real</p>
+                </div>
+                <div class="benefit-item">
+                    <h4>🔧 Flexibilidade</h4>
+                    <p>Fluxos personalizáveis por tipo de obra</p>
+                </div>
+                <div class="benefit-item">
+                    <h4>🔒 Segurança</h4>
+                    <p>Controle de acesso e auditoria</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>👥 Atores do Sistema</h2>
+            <div class="actors-section">
+                <div class="actor-card">
+                    <h3>🏢 Paranacidade</h3>
+                    <p>Órgão responsável pela supervisão técnica das obras. Coordena e acompanha todo o processo de execução.</p>
+                </div>
+                <div class="actor-card">
+                    <h3>🏛️ Secretarias</h3>
+                    <p>SESA (Saúde), SESP (Segurança), SEED (Educação) - Cada uma com suas especificidades técnicas.</p>
+                </div>
+                <div class="actor-card">
+                    <h3>💼 SECID</h3>
+                    <p>Secretaria de Planejamento - Responsável pela gestão orçamentária e administrativa dos projetos.</p>
+                </div>
+                <div class="actor-card">
+                    <h3>🏗️ Empresas</h3>
+                    <p>Construtoras e prestadores de serviços externos que executam as obras e fornecem documentação.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📦 Módulos do Sistema</h2>
+            <div class="requirements-grid">
+                <div class="requirement-card">
+                    <h3>📤 Envio de Documentação</h3>
+                    <ul>
+                        <li><strong>Quem pede:</strong> Ator anterior no fluxo</li>
+                        <li><strong>Quem executa:</strong> Ator responsável pelo envio</li>
+                        <li>Upload de documentos obrigatórios</li>
+                        <li>Validação de formatos</li>
+                        <li>Notificação de recebimento</li>
+                        <li>Controle de prazos</li>
+                    </ul>
+                </div>
+                <div class="requirement-card">
+                    <h3>🔍 Análise de Documentação</h3>
+                    <ul>
+                        <li><strong>Quem pede:</strong> Ator que enviou documentos</li>
+                        <li><strong>Quem executa:</strong> Ator responsável pela análise</li>
+                        <li>Análise técnica especializada</li>
+                        <li>Parecer de aprovação/reprovação</li>
+                        <li>Solicitação de correções</li>
+                        <li>Justificativas obrigatórias</li>
+                    </ul>
+                </div>
+                <div class="requirement-card">
+                    <h3>✍️ Assinatura de Documentação</h3>
+                    <ul>
+                        <li><strong>Quem pede:</strong> Ator que solicitou assinatura</li>
+                        <li><strong>Quem executa:</strong> Ator responsável pela assinatura</li>
+                        <li>Assinatura digital segura</li>
+                        <li>Hierarquia de assinantes</li>
+                        <li>Validação de documentos</li>
+                        <li>Certificado de autenticidade</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⚙️ Requisitos Funcionais</h2>
+            <div class="requirements-grid">
+                <div class="requirement-card">
+                    <h3>🔄 Gestão de Fluxos</h3>
+                    <ul>
+                        <li>Criar fluxos personalizáveis</li>
+                        <li>Definir etapas sequenciais</li>
+                        <li>Configurar módulos por etapa</li>
+                        <li>Versionamento de fluxos</li>
+                        <li>Ativação/desativação</li>
+                    </ul>
+                </div>
+                <div class="requirement-card">
+                    <h3>📋 Gestão de Obras</h3>
+                    <ul>
+                        <li>Integração via API</li>
+                        <li>Associação a fluxos</li>
+                        <li>Acompanhamento de status</li>
+                        <li>Controle de prazos</li>
+                        <li>Notificações automáticas</li>
+                    </ul>
+                </div>
+                <div class="requirement-card">
+                    <h3>🔐 Controle de Acesso</h3>
+                    <ul>
+                        <li>Perfis por organização</li>
+                        <li>Permissões granulares</li>
+                        <li>Autenticação segura</li>
+                        <li>Log de atividades</li>
+                        <li>Segregação de dados</li>
+                    </ul>
+                </div>
+                <div class="requirement-card">
+                    <h3>📊 Dashboards e Relatórios</h3>
+                    <ul>
+                        <li>Painel de controle</li>
+                        <li>Relatórios customizáveis</li>
+                        <li>Gráficos de desempenho</li>
+                        <li>Alertas de prazo</li>
+                        <li>Exportação de dados</li>
+                    </ul>
+                </div>
+                <div class="requirement-card">
+                    <h3>🔔 Notificações</h3>
+                    <ul>
+                        <li>Email automático</li>
+                        <li>Alertas no sistema</li>
+                        <li>Lembretes de prazo</li>
+                        <li>Status de aprovação</li>
+                        <li>Configurações personalizadas</li>
+                    </ul>
+                </div>
+                <div class="requirement-card">
+                    <h3>🛠️ Configuração</h3>
+                    <ul>
+                        <li>Módulos personalizáveis</li>
+                        <li>Descrições customizadas</li>
+                        <li>Definição de responsáveis</li>
+                        <li>Prazos por módulo</li>
+                        <li>Templates de documentos</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔄 Exemplos de Fluxos</h2>
+            <div class="workflow-container">
+                
+                <div class="workflow">
+                    <h3>🏫 Fluxo: Construção de Escola (SEED)</h3>
+                    <div class="workflow-steps">
+                        <div class="workflow-step">
+                            <div class="step-box actor">Empresa Construtora</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type envio">Envio de Documentação</div>
+                                <strong>Envio de Projeto Executivo</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> Paranacidade<br>
+                                    <strong>Executado por:</strong> Empresa Construtora<br>
+                                    <strong>Descrição:</strong> Envio do projeto executivo completo com memorial descritivo e cronograma de execução
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">Paranacidade</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type analise">Análise de Documentação</div>
+                                <strong>Análise Técnica Estrutural</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> Empresa Construtora<br>
+                                    <strong>Executado por:</strong> Paranacidade<br>
+                                    <strong>Descrição:</strong> Análise técnica do projeto executivo verificando conformidade com normas técnicas e viabilidade estrutural
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">SEED</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type analise">Análise de Documentação</div>
+                                <strong>Análise Pedagógica</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> Paranacidade<br>
+                                    <strong>Executado por:</strong> SEED<br>
+                                    <strong>Descrição:</strong> Verificação da adequação do projeto às necessidades pedagógicas e diretrizes educacionais do estado
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">SECID</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type analise">Análise de Documentação</div>
+                                <strong>Análise Orçamentária</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> SEED<br>
+                                    <strong>Executado por:</strong> SECID<br>
+                                    <strong>Descrição:</strong> Verificação da viabilidade orçamentária do projeto e disponibilidade de recursos financeiros
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">Paranacidade + SEED</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type assinatura">Assinatura de Documentação</div>
+                                <strong>Assinatura de Aprovação Final</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> SECID<br>
+                                    <strong>Executado por:</strong> Paranacidade + SEED<br>
+                                    <strong>Descrição:</strong> Assinatura conjunta para aprovação final do projeto e autorização para início da execução
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="workflow">
+                    <h3>🏥 Fluxo: Unidade de Saúde (SESA)</h3>
+                    <div class="workflow-steps">
+                        <div class="workflow-step">
+                            <div class="step-box actor">Empresa</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type envio">Envio de Documentação</div>
+                                <strong>Envio de Projetos Especializados</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> Paranacidade<br>
+                                    <strong>Executado por:</strong> Empresa<br>
+                                    <strong>Descrição:</strong> Envio de projeto arquitetônico, sanitário e elétrico conforme normas da ANVISA
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">Paranacidade</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type analise">Análise de Documentação</div>
+                                <strong>Análise Técnica Geral</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> Empresa<br>
+                                    <strong>Executado por:</strong> Paranacidade<br>
+                                    <strong>Descrição:</strong> Verificação técnica geral dos projetos quanto à estrutura, instalações e conformidade com normas
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">SESA</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type analise">Análise de Documentação</div>
+                                <strong>Análise Sanitária Especializada</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> Paranacidade<br>
+                                    <strong>Executado por:</strong> SESA<br>
+                                    <strong>Descrição:</strong> Análise específica para conformidade com normas sanitárias, ANVISA e requisitos de saúde pública
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">SECID</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type analise">Análise de Documentação</div>
+                                <strong>Aprovação Orçamentária</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> SESA<br>
+                                    <strong>Executado por:</strong> SECID<br>
+                                    <strong>Descrição:</strong> Análise da viabilidade financeira e aprovação do orçamento para execução da obra
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">Paranacidade + SESA + SECID</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type assinatura">Assinatura de Documentação</div>
+                                <strong>Assinatura Múltipla de Liberação</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> Sistema (automático)<br>
+                                    <strong>Executado por:</strong> Paranacidade + SESA + SECID<br>
+                                    <strong>Descrição:</strong> Assinatura conjunta dos três órgãos para liberação final da obra de saúde
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="workflow">
+                    <h3>🚔 Fluxo: Segurança Pública (SESP)</h3>
+                    <div class="workflow-steps">
+                        <div class="workflow-step">
+                            <div class="step-box actor">Empresa</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type envio">Envio de Documentação</div>
+                                <strong>Envio de Projeto de Segurança</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> Paranacidade<br>
+                                    <strong>Executado por:</strong> Empresa<br>
+                                    <strong>Descrição:</strong> Envio de projeto da obra com especificações técnicas voltadas para segurança pública
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">Paranacidade</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type analise">Análise de Documentação</div>
+                                <strong>Análise Técnica</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> Empresa<br>
+                                    <strong>Executado por:</strong> Paranacidade<br>
+                                    <strong>Descrição:</strong> Análise técnica geral do projeto verificando aspectos estruturais e de engenharia
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">SESP</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type analise">Análise de Documentação</div>
+                                <strong>Análise de Segurança Operacional</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> Paranacidade<br>
+                                    <strong>Executado por:</strong> SESP<br>
+                                    <strong>Descrição:</strong> Verificação de adequação às normas de segurança pública e operacionalidade para forças policiais
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">SECID</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type analise">Análise de Documentação</div>
+                                <strong>Aprovação Orçamentária</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> SESP<br>
+                                    <strong>Executado por:</strong> SECID<br>
+                                    <strong>Descrição:</strong> Análise de viabilidade financeira e liberação de recursos orçamentários
+                                </div>
+                            </div>
+                        </div>
+                        <div class="arrow-down">↓</div>
+                        <div class="workflow-step">
+                            <div class="step-box actor">Paranacidade + SESP</div>
+                            <div class="arrow">→</div>
+                            <div class="step-box action">
+                                <div class="module-type assinatura">Assinatura de Documentação</div>
+                                <strong>Assinatura Final de Execução</strong>
+                                <div class="module-info">
+                                    <strong>Pedido por:</strong> SECID<br>
+                                    <strong>Executado por:</strong> Paranacidade + SESP<br>
+                                    <strong>Descrição:</strong> Assinatura conjunta para autorização final de execução da obra de segurança pública
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>💻 Stack Tecnológica Definida</h2>
+            <div class="tech-stack">
+                <div class="tech-item">PHP Laravel</div>
+                <div class="tech-item">MySQL</div>
+                <div class="tech-item">API REST</div>
+                <div class="tech-item">HTML/CSS/JS</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📈 Benefícios Esperados</h2>
+            <div class="requirements-grid">
+                <div class="requirement-card">
+                    <h3>⏱️ Eficiência Operacional</h3>
+                    <ul>
+                        <li>Redução de 60% no tempo de tramitação</li>
+                        <li>Eliminação de processos manuais</li>
+                        <li>Padronização de procedimentos</li>
+                        <li>Automatização de notificações</li>
+                    </ul>
+                </div>
+                <div class="requirement-card">
+                    <h3>🎯 Controle e Transparência</h3>
+                    <ul>
+                        <li>Rastreabilidade completa</li>
+                        <li>Visibilidade em tempo real</li>
+                        <li>Relatórios gerenciais</li>
+                        <li>Auditoria automatizada</li>
+                    </ul>
+                </div>
+                <div class="requirement-card">
+                    <h3>🤝 Integração Institucional</h3>
+                    <ul>
+                        <li>Comunicação unificada</li>
+                        <li>Eliminação de retrabalho</li>
+                        <li>Padronização entre secretarias</li>
+                        <li>Melhoria na colaboração</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Próximos Passos</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                <div style="background: #e3f2fd; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #2196f3;">
+                    <h4 style="color: #1976d2; margin-bottom: 0.5rem;">Fase 1: Detalhamento</h4>
+                    <p>Especificação detalhada dos requisitos e modelagem do banco de dados</p>
+                </div>
+                <div style="background: #f3e5f5; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #9c27b0;">
+                    <h4 style="color: #7b1fa2; margin-bottom: 0.5rem;">Fase 2: Prototipação</h4>
+                    <p>Desenvolvimento de protótipos das interfaces principais</p>
+                </div>
+                <div style="background: #e8f5e8; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #4caf50;">
+                    <h4 style="color: #388e3c; margin-bottom: 0.5rem;">Fase 3: Desenvolvimento</h4>
+                    <p>Implementação do sistema em PHP Laravel com MySQL</p>
+                </div>
+                <div style="background: #fff3e0; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #ff9800;">
+                    <h4 style="color: #f57c00; margin-bottom: 0.5rem;">Fase 4: Implantação</h4>
+                    <p>Testes, treinamento e go-live do sistema</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

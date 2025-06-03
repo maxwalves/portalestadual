@@ -31,6 +31,11 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/admin/impersonate/{user}', [ImpersonateController::class, 'impersonate'])->name('admin.impersonate');
 });
 
+// Rota para o Dashboard de Obras
+Route::get('/dashboard/obras', function () {
+    return view('planejamento.demo_sistema_obras');
+})->middleware(['auth', 'verified'])->name('dashboard.obras');
+
 // Rota para depuração (apenas em ambiente de desenvolvimento)
 if (app()->environment('local')) {
     Route::get('/debug/auth', function () {
