@@ -50,4 +50,16 @@ if (app()->environment('local')) {
     });
 }
 
+Route::middleware(['auth'])->group(function () {
+    Route::resource('organizacoes', \App\Http\Controllers\OrganizacaoController::class)->parameters([
+        'organizacoes' => 'organizacao'
+    ]);
+    Route::resource('termos-adesao', \App\Http\Controllers\TermoAdesaoController::class)->parameters([
+        'termos-adesao' => 'termo'
+    ]);
+    Route::resource('cadastros-demanda-gms', \App\Http\Controllers\CadastroDemandaGmsController::class);
+    Route::post('cadastros-demanda-gms/sync', [\App\Http\Controllers\CadastroDemandaGmsController::class, 'sync'])->name('cadastros-demanda-gms.sync');
+    Route::resource('demandas', \App\Http\Controllers\DemandaController::class);
+});
+
 require __DIR__ . '/auth.php';

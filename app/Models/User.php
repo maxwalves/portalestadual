@@ -42,6 +42,7 @@ class User extends Authenticatable implements LdapAuthenticatable
         'active',
         'guid',
         'domain',
+        'organizacao_id',
     ];
 
     /**
@@ -86,7 +87,7 @@ class User extends Authenticatable implements LdapAuthenticatable
      */
     public function getLdapAuthIdentifier()
     {
-        return $this->username;
+        return $this->{$this->getLdapAuthIdentifierName()};
     }
 
     /**
@@ -102,21 +103,29 @@ class User extends Authenticatable implements LdapAuthenticatable
     /**
      * Get the LDAP domain for the user.
      *
-     * @return string
+     * @return string|null
      */
-    public function getLdapDomain(): string
+    public function getLdapDomain(): ?string
     {
-        return $this->domain ?? '';
+        return $this->domain ?? null;
     }
 
     /**
      * Get the LDAP GUID for the user.
      *
-     * @return string
+     * @return string|null
      */
-    public function getLdapGuid(): string
+    public function getLdapGuid(): ?string
     {
-        return $this->guid ?? '';
+        return $this->guid ?? null;
+    }
+
+    /**
+     * Get the organizacao that owns the user.
+     */
+    public function organizacao()
+    {
+        return $this->belongsTo(Organizacao::class);
     }
 
     public function roles(): BelongsToMany

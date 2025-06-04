@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Models\Organizacao;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -12,7 +13,7 @@ class UserRoleController extends Controller
     public function index(Request $request)
     {
         $search = $request->search;
-        $users  = User::with('roles')
+        $users  = User::with(['roles', 'organizacao'])
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -23,55 +24,132 @@ class UserRoleController extends Controller
             ->paginate(10);
 
         $roles = Role::all();
+        $organizacoes = Organizacao::where('is_ativo', true)->orderBy('nome')->get();
 
-        return view('admin.users.roles', compact('users', 'roles', 'search'));
+        return view('admin.users.roles', compact('users', 'roles', 'organizacoes', 'search'));
     }
 
     public function update(Request $request, User $user)
     {
-        $request->validate([
-            'roles'   => 'required|array',
+
+        // Validação mais específica
+        $validated = $request->validate([
+            'roles'   => 'array', // remover required - pode ser vazio quando nenhuma role selecionada
             'roles.*' => 'exists:roles,id',
+            'organizacao_id' => 'nullable|string', // permitir string primeiro
         ]);
 
-        $user->roles()->sync($request->roles);
+        // Tratar organizacao_id
+        $organizacaoId = $request->organizacao_id;
+        if ($organizacaoId === '' || $organizacaoId === 'null' || $organizacaoId === null) {
+            $organizacaoId = null;
+        } else {
+            // Validar se a organização existe quando não é null
+            $organizacaoExists = \App\Models\Organizacao::where('id', $organizacaoId)->exists();
+            if (!$organizacaoExists) {
+                return redirect()->back()->withErrors(['organizacao_id' => 'Organização não encontrada']);
+            }
+        }
 
-        return redirect()->back()->with('success', 'Permissões atualizadas com sucesso!');
+        // Atualizar roles - sempre sincronizar, mesmo se vazio (para permitir remover todas)
+        $rolesToSync = $request->roles ?? [];
+        $user->roles()->sync($rolesToSync);
+
+        // Atualizar organização
+        $user->organizacao_id = $organizacaoId;
+        $user->save();
+
+        return redirect()->back()->with('success', 'Permissões e organização atualizadas com sucesso!');
     }
 
     public function massUpdate(Request $request)
     {
-        $request->validate([
+        $validationRules = [
             'user_ids'   => 'required|array',
             'user_ids.*' => 'exists:users,id',
-            'roles'      => 'required|array',
-            'roles.*'    => 'exists:roles,id',
+            'organizacao_id' => 'nullable|string',
+            'process_roles' => 'boolean',
+        ];
+
+        // Só validar mass_roles se o campo existir na request
+        if ($request->has('mass_roles')) {
+            $validationRules['mass_roles'] = 'array';
+            $validationRules['mass_roles.*'] = 'exists:roles,id';
+        }
+
+        $request->validate($validationRules);
+
+        // Debug para entender o que está sendo enviado
+        \Log::info('=== MASS UPDATE DEBUG ===', [
+            'user_ids' => $request->user_ids,
+            'organizacao_id' => $request->organizacao_id,
+            'mass_roles' => $request->mass_roles,
+            'has_mass_roles' => $request->has('mass_roles'),
+            'request_all' => $request->all()
         ]);
 
         // Encontrar o role de admin
         $adminRole = Role::where('name', 'admin')->first();
+        $usersUpdated = 0;
 
-        User::whereIn('id', $request->user_ids)->each(function ($user) use ($request, $adminRole) {
-            // Se o usuário já tem role admin, mantém
-            if ($adminRole && $user->roles->contains($adminRole->id)) {
-                $newRoles = collect($request->roles)
-                    ->push($adminRole->id)
-                    ->unique()
-                    ->toArray();
-                $user->roles()->sync($newRoles);
+        User::whereIn('id', $request->user_ids)->each(function ($user) use ($request, $adminRole, &$usersUpdated) {
+            $userUpdated = false;
+            
+            // Atualizar organização se especificado (não vazio e não "manter atual")
+            if ($request->has('organizacao_id') && $request->organizacao_id !== '') {
+                if ($request->organizacao_id === 'null') {
+                    $user->organizacao_id = null;
+                    $userUpdated = true;
+                } else {
+                    // Validar se a organização existe
+                    $organizacaoExists = \App\Models\Organizacao::where('id', $request->organizacao_id)->exists();
+                    if ($organizacaoExists) {
+                        $user->organizacao_id = $request->organizacao_id;
+                        $userUpdated = true;
+                    }
+                }
             }
-            // Se o usuário não tem role admin, não adiciona
-            else {
-                $newRoles = collect($request->roles)
-                    ->reject(function ($roleId) use ($adminRole) {
-                        return $adminRole && $roleId == $adminRole->id;
-                    })
-                    ->toArray();
-                $user->roles()->sync($newRoles);
+
+            // Salvar alterações de organização se houver
+            if ($userUpdated) {
+                $user->save();
+                \Log::info("Organização atualizada para usuário {$user->id}: {$user->organizacao_id}");
+            }
+
+            // Atualizar roles se especificado
+            if ($request->has('process_roles')) {
+                $requestedRoles = $request->mass_roles ?? [];
+                
+                // Se o usuário já tem role admin, mantém
+                if ($adminRole && $user->roles->contains($adminRole->id)) {
+                    $newRoles = collect($requestedRoles)
+                        ->push($adminRole->id)
+                        ->unique()
+                        ->toArray();
+                    $user->roles()->sync($newRoles);
+                }
+                // Se o usuário não tem role admin, não adiciona
+                else {
+                    $newRoles = collect($requestedRoles)
+                        ->reject(function ($roleId) use ($adminRole) {
+                            return $adminRole && $roleId == $adminRole->id;
+                        })
+                        ->toArray();
+                    $user->roles()->sync($newRoles);
+                }
+                
+                \Log::info("Roles atualizadas para usuário {$user->id}: " . json_encode($requestedRoles));
+                $userUpdated = true;
+            }
+
+            if ($userUpdated) {
+                $usersUpdated++;
             }
         });
 
-        return redirect()->back()->with('success', 'Permissões atualizadas em massa com sucesso!');
+        \Log::info("Total de usuários atualizados: {$usersUpdated}");
+
+        return redirect()->back()->with('success', "Permissões e organizações atualizadas para {$usersUpdated} usuário(s) com sucesso!");
     }
 
     public function toggleActive(User $user)
@@ -277,6 +355,7 @@ class UserRoleController extends Controller
             'password' => 'required|string|min:8|confirmed',
             'roles'    => 'required|array',
             'roles.*'  => 'exists:roles,id',
+            'organizacao_id' => 'nullable|exists:organizacao,id',
         ]);
 
         try {
@@ -291,6 +370,7 @@ class UserRoleController extends Controller
                 'active'                => true,
                 'force_password_change' => false,
                 'isExterno'             => true,
+                'organizacao_id'        => $request->organizacao_id,
             ]);
 
             $user->roles()->sync($request->roles);

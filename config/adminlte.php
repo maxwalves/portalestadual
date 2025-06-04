@@ -326,6 +326,26 @@ return [
             'can'     => 'admin',
             'url'  => 'admin/users/roles',
         ],
+        [
+            'text' => 'Organizações',
+            'url'  => 'organizacoes',
+            'icon' => 'fas fa-building',
+        ],
+        [
+            'text' => 'Termos de Adesão',
+            'url'  => 'termos-adesao',
+            'icon' => 'fas fa-file-signature',
+        ],
+        [
+            'text' => 'Cadastro Demanda GMS',
+            'url'  => 'cadastros-demanda-gms',
+            'icon' => 'fas fa-database',
+        ],
+        [
+            'text' => 'Demandas',
+            'url'  => 'demandas',
+            'icon' => 'fas fa-tasks',
+        ],
     ],
 
     /*
@@ -409,12 +429,12 @@ return [
             ],
         ],
         'Sweetalert2' => [
-            'active' => false,
+            'active' => true,
             'files'  => [
                 [
                     'type'     => 'js',
                     'asset'    => false,
-                    'location' => '//cdn.jsdelivr.net/npm/sweetalert2@8',
+                    'location' => '//cdn.jsdelivr.net/npm/sweetalert2@11',
                 ],
             ],
         ],

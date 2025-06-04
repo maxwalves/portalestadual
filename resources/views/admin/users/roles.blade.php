@@ -96,6 +96,7 @@
                             </th>
                             <th>Nome</th>
                             <th>Email</th>
+                            <th>Organização</th>
                             <th style="width: 100px">Status</th>
                             <th>Permissões</th>
                             <th style="width: 280px">Ações</th>
@@ -106,7 +107,7 @@
                             <tr>
                                 <td>
                                     <div class="custom-control custom-checkbox">
-                                        <input type="checkbox" form="massEditForm" name="user_ids[]"
+                                        <input type="checkbox" name="user_ids[]"
                                             value="{{ $user->id }}" class="custom-control-input user-checkbox"
                                             id="user-{{ $user->id }}">
                                         <label for="user-{{ $user->id }}" class="custom-control-label"></label>
@@ -114,6 +115,13 @@
                                 </td>
                                 <td>{{ $user->name }}</td>
                                 <td>{{ $user->email }}</td>
+                                <td>
+                                    @if($user->organizacao)
+                                        <span class="badge badge-primary">{{ $user->organizacao->nome }}</span>
+                                    @else
+                                        <span class="badge badge-secondary">Sem organização</span>
+                                    @endif
+                                </td>
                                 <td class="text-center">
                                     <span class="badge {{ $user->active ? 'badge-success' : 'badge-danger' }}">
                                         {{ $user->active ? 'Ativo' : 'Inativo' }}
@@ -170,13 +178,6 @@
             </div>
         </div>
     </div>
-    </div>
-    </div>
-
-    <!-- Formulário de Edição em Massa -->
-    <form id="massEditForm" action="{{ route('admin.users.roles.mass-update') }}" method="POST" class="d-none">
-        @csrf
-    </form>
 
     <!-- Modais Individuais -->
     @foreach ($users as $user)
@@ -193,6 +194,20 @@
                         @csrf
                         @method('PUT')
                         <div class="modal-body">
+                            <div class="form-group">
+                                <label>Organização</label>
+                                <select name="organizacao_id" class="form-control">
+                                    <option value="">Sem organização</option>
+                                    @foreach($organizacoes as $organizacao)
+                                        <option value="{{ $organizacao->id }}" {{ $user->organizacao_id == $organizacao->id ? 'selected' : '' }}>
+                                            {{ $organizacao->nome }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Permissões</label>
+                                <div class="mt-2">
                             @foreach ($roles as $role)
                                 <div class="custom-control custom-checkbox">
                                     <input type="checkbox" id="role-{{ $user->id }}-{{ $role->id }}"
@@ -205,6 +220,8 @@
                                     </label>
                                 </div>
                             @endforeach
+                                </div>
+                            </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
@@ -226,22 +243,45 @@
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
-                <div class="modal-body">
-                    <p class="text-muted">Selecione as permissões que deseja aplicar aos usuários selecionados:</p>
-                    @foreach ($roles as $role)
-                        <div class="custom-control custom-checkbox">
-                            <input type="checkbox" id="mass-role-{{ $role->id }}" name="mass_roles[]"
-                                value="{{ $role->id }}" class="custom-control-input">
-                            <label for="mass-role-{{ $role->id }}" class="custom-control-label">
-                                {{ $role->name }}
-                            </label>
+                <form id="massEditForm" action="{{ route('admin.users.roles.mass-update') }}" method="POST">
+                    @csrf
+                    <!-- Hidden input para indicar que sempre devemos processar roles -->
+                    <input type="hidden" name="process_roles" value="1">
+                    <div class="modal-body">
+                        <p class="text-muted">Selecione as permissões que deseja aplicar aos usuários selecionados:</p>
+                        
+                        <div class="form-group">
+                            <label>Organização</label>
+                            <select name="organizacao_id" class="form-control">
+                                <option value="">Manter organização atual</option>
+                                <option value="null">Remover organização</option>
+                                @foreach($organizacoes as $organizacao)
+                                    <option value="{{ $organizacao->id }}">{{ $organizacao->nome }}</option>
+                                @endforeach
+                            </select>
+                            <small class="form-text text-muted">Deixe em "Manter organização atual" para não alterar</small>
                         </div>
-                    @endforeach
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    <button type="submit" form="massEditForm" class="btn btn-primary">Salvar</button>
-                </div>
+
+                        <div class="form-group">
+                            <label>Permissões</label>
+                            <div class="mt-2">
+                        @foreach ($roles as $role)
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" id="mass-role-{{ $role->id }}" name="mass_roles[]"
+                                    value="{{ $role->id }}" class="custom-control-input">
+                                <label for="mass-role-{{ $role->id }}" class="custom-control-label">
+                                    {{ $role->name }}
+                                </label>
+                            </div>
+                        @endforeach
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -277,6 +317,15 @@
                             <input type="password" name="password_confirmation" id="password_confirmation"
                                 class="form-control" required>
                             <div id="password-error" class="invalid-feedback"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Organização</label>
+                            <select name="organizacao_id" class="form-control">
+                                <option value="">Sem organização</option>
+                                @foreach($organizacoes as $organizacao)
+                                    <option value="{{ $organizacao->id }}">{{ $organizacao->nome }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="form-group">
                             <label>Permissões</label>
@@ -467,6 +516,20 @@
                 });
                 return;
             }
+
+            // Limpar inputs anteriores
+            $('#massEditForm input[name="user_ids[]"]').remove();
+            
+            // Adicionar os usuários selecionados ao formulário
+            selectedUsers.forEach(function(checkbox) {
+                const hiddenInput = $('<input>').attr({
+                    type: 'hidden',
+                    name: 'user_ids[]',
+                    value: checkbox.value
+                });
+                $('#massEditForm').append(hiddenInput);
+            });
+
             $('#massEditModal').modal('show');
         }
 
@@ -559,4 +622,4 @@
             $('.user-checkbox').prop('checked', $(this).prop('checked'));
         });
     </script>
-@stop
+@stop 
