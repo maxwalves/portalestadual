@@ -201,46 +201,68 @@ class UserRoleController extends Controller
     public function syncLdapUsers()
     {
         try {
-            $ldapUsers = \LdapRecord\Models\ActiveDirectory\User::get();
-            $stats     = [
+            $stats = [
                 'created' => 0,
                 'updated' => 0,
+                'errors' => 0,
                 'skipped' => 0,
-                'reasons' => [
-                    'sem_username'       => 0,
-                    'sem_nome_email'     => 0,
-                    'erro_criacao'       => 0,
-                    'erro_processamento' => 0,
-                ],
+                'messages' => []
             ];
 
-            Log::info('Iniciando sincronização LDAP. Total de usuários no LDAP: ' . $ldapUsers->count());
+            // Conectar ao LDAP
+            $ldapConnection = ldap_connect(env('LDAP_HOST'), env('LDAP_PORT'));
 
-            foreach ($ldapUsers as $ldapUser) {
-                try {
-                    $username = $ldapUser->samaccountname[0] ?? null;
+            if (!$ldapConnection) {
+                return redirect()->back()->with('error', 'Erro ao conectar com o servidor LDAP.');
+            }
 
-                    if (! $username) {
-                        $this->logSkippedUser('sem_username', 'Usuário LDAP sem samaccountname encontrado', $stats);
-                        continue;
-                    }
+            ldap_set_option($ldapConnection, LDAP_OPT_PROTOCOL_VERSION, 3);
+            ldap_set_option($ldapConnection, LDAP_OPT_REFERRALS, 0);
 
-                    $userData = $this->prepareUserData($ldapUser, $username);
+            // Tentar bind com as credenciais administrativas
+            $bind = @ldap_bind($ldapConnection, env('LDAP_USERNAME'), env('LDAP_PASSWORD'));
 
-                    if (! $this->validateUserData($userData, $username, $stats)) {
-                        continue;
-                    }
+            if (!$bind) {
+                ldap_close($ldapConnection);
+                return redirect()->back()->with('error', 'Erro de autenticação no servidor LDAP.');
+            }
 
+            // Base DN e filtro para buscar usuários
+            $baseDn = env('LDAP_BASE_DN');
+            $filter = '(&(objectClass=user)(!(objectClass=computer)))';
+
+            $search = ldap_search($ldapConnection, $baseDn, $filter);
+
+            if (!$search) {
+                ldap_close($ldapConnection);
+                return redirect()->back()->with('error', 'Erro ao realizar pesquisa no LDAP.');
+            }
+
+            $entries = ldap_get_entries($ldapConnection, $search);
+
+            for ($i = 0; $i < $entries['count']; $i++) {
+                $ldapUser = $entries[$i];
+                $username = $ldapUser['samaccountname'][0] ?? null;
+
+                if (!$username) {
+                    $this->logSkippedUser('no_username', 'Usuário sem samaccountname', $stats);
+                    continue;
+                }
+
+                $userData = $this->prepareUserData($ldapUser, $username);
+
+                if ($this->validateUserData($userData, $username, $stats)) {
                     $this->processUser($userData, $username, $stats);
-                } catch (\Exception $e) {
-                    $this->logSkippedUser('erro_processamento', "Erro ao processar usuário LDAP: " . $e->getMessage(), $stats);
                 }
             }
 
+            ldap_close($ldapConnection);
+
             return $this->returnSyncResults($stats);
+
         } catch (\Exception $e) {
             Log::error('Erro na sincronização LDAP: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Erro ao sincronizar com o LDAP: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Erro interno na sincronização: ' . $e->getMessage());
         }
     }
 
@@ -254,12 +276,12 @@ class UserRoleController extends Controller
     private function prepareUserData($ldapUser, $username)
     {
         return [
-            'name'                  => $ldapUser->displayname[0] ?? null,
-            'email'                 => $ldapUser->mail[0] ?? null,
+            'name'                  => $ldapUser['displayname'][0] ?? null,
+            'email'                 => $ldapUser['mail'][0] ?? null,
             'username'              => $username,
-            'manager'               => $ldapUser->manager[0] ?? null,
-            'department'            => $ldapUser->departmentnumber[0] ?? null,
-            'employeeNumber'        => $ldapUser->employeenumber[0] ?? null,
+            'manager'               => $ldapUser['manager'][0] ?? null,
+            'department'            => $ldapUser['departmentnumber'][0] ?? null,
+            'employeeNumber'        => $ldapUser['employeenumber'][0] ?? null,
             'active'                => true,
             'force_password_change' => true,
         ];
@@ -276,7 +298,7 @@ class UserRoleController extends Controller
     private function validateUserData($userData, $username, &$stats)
     {
         if (empty($userData['name']) || empty($userData['email'])) {
-            $this->logSkippedUser('sem_nome_email', "Usuário {$username} sem nome ou email", $stats);
+            $this->logSkippedUser('no_name_email', "Usuário {$username} sem nome ou email", $stats);
             Log::warning("Dados do usuário: " . json_encode($userData));
             return false;
         }
@@ -322,7 +344,7 @@ class UserRoleController extends Controller
     {
         Log::warning($message);
         $stats['skipped']++;
-        $stats['reasons'][$reason]++;
+        $stats['messages'][] = $message;
     }
 
     /**
@@ -334,7 +356,7 @@ class UserRoleController extends Controller
     private function returnSyncResults($stats)
     {
         Log::info("Sincronização concluída. Criados: {$stats['created']}, Atualizados: {$stats['updated']}, Pulados: {$stats['skipped']}");
-        Log::info("Motivos dos pulos: " . json_encode($stats['reasons']));
+        Log::info("Motivos dos pulos: " . json_encode($stats['messages']));
 
         $message = "Sincronização concluída! {$stats['created']} usuários criados e {$stats['updated']} atualizados.";
 
@@ -379,6 +401,31 @@ class UserRoleController extends Controller
         } catch (\Exception $e) {
             Log::error('Erro ao criar usuário externo: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Erro ao criar usuário externo. Por favor, tente novamente.');
+        }
+    }
+
+    /**
+     * Sincronizar cidades do Paraná com a API do IBGE
+     */
+    public function syncCidades()
+    {
+        try {
+            // Executar o comando artisan de sincronização
+            \Artisan::call('cidades:sincronizar', ['--estado' => 'PR']);
+            
+            $output = \Artisan::output();
+            
+            // Verificar se houve sucesso analisando a saída
+            if (strpos($output, '✅') !== false) {
+                return redirect()->back()->with('success', 'Cidades do Paraná sincronizadas com sucesso!');
+            } else {
+                Log::error('Erro na sincronização de cidades: ' . $output);
+                return redirect()->back()->with('error', 'Erro ao sincronizar cidades. Verifique os logs.');
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Erro ao sincronizar cidades: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Erro interno na sincronização de cidades: ' . $e->getMessage());
         }
     }
 }

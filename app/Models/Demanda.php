@@ -29,4 +29,27 @@ class Demanda extends Model
     {
         return $this->belongsTo(CadastroDemandaGms::class, 'cadastro_demanda_gms_id');
     }
+
+    /**
+     * Get the organizacao through the termo adesao.
+     */
+    public function organizacao()
+    {
+        return $this->hasOneThrough(
+            Organizacao::class,
+            TermoAdesao::class,
+            'id', // Foreign key on termo_adesao table
+            'id', // Foreign key on organizacao table
+            'termo_adesao_id', // Local key on demandas table
+            'organizacao_id' // Local key on termo_adesao table
+        );
+    }
+
+    /**
+     * Get all acoes for this demanda.
+     */
+    public function acoes()
+    {
+        return $this->hasMany(Acao::class);
+    }
 }

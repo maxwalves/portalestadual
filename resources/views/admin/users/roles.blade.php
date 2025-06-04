@@ -79,6 +79,13 @@
                                 <i class="fas fa-sync"></i> Sincronizar LDAP
                             </button>
                         </form>
+                        <form action="{{ route('admin.users.sync-cidades') }}" method="POST" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-warning" 
+                                    onclick="return confirm('Deseja sincronizar as cidades do Paraná? Esta operação pode demorar alguns minutos.')">
+                                <i class="fas fa-map-marker-alt"></i> Sincronizar Cidades
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>

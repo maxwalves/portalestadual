@@ -346,6 +346,11 @@ return [
             'url'  => 'demandas',
             'icon' => 'fas fa-tasks',
         ],
+        [
+            'text' => 'Ações',
+            'url'  => 'acoes',
+            'icon' => 'fas fa-rocket',
+        ],
     ],
 
     /*
