@@ -1,9 +1,9 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Models\Organizacao;
 use App\Models\Role;
 use App\Models\User;
-use App\Models\Organizacao;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -23,7 +23,7 @@ class UserRoleController extends Controller
             ->orderBy('name')
             ->paginate(10);
 
-        $roles = Role::all();
+        $roles        = Role::all();
         $organizacoes = Organizacao::where('is_ativo', true)->orderBy('nome')->get();
 
         return view('admin.users.roles', compact('users', 'roles', 'organizacoes', 'search'));
@@ -34,8 +34,8 @@ class UserRoleController extends Controller
 
         // Validação mais específica
         $validated = $request->validate([
-            'roles'   => 'array', // remover required - pode ser vazio quando nenhuma role selecionada
-            'roles.*' => 'exists:roles,id',
+            'roles'          => 'array', // remover required - pode ser vazio quando nenhuma role selecionada
+            'roles.*'        => 'exists:roles,id',
             'organizacao_id' => 'nullable|string', // permitir string primeiro
         ]);
 
@@ -46,7 +46,7 @@ class UserRoleController extends Controller
         } else {
             // Validar se a organização existe quando não é null
             $organizacaoExists = \App\Models\Organizacao::where('id', $organizacaoId)->exists();
-            if (!$organizacaoExists) {
+            if (! $organizacaoExists) {
                 return redirect()->back()->withErrors(['organizacao_id' => 'Organização não encontrada']);
             }
         }
@@ -65,15 +65,15 @@ class UserRoleController extends Controller
     public function massUpdate(Request $request)
     {
         $validationRules = [
-            'user_ids'   => 'required|array',
-            'user_ids.*' => 'exists:users,id',
+            'user_ids'       => 'required|array',
+            'user_ids.*'     => 'exists:users,id',
             'organizacao_id' => 'nullable|string',
-            'process_roles' => 'boolean',
+            'process_roles'  => 'boolean',
         ];
 
         // Só validar mass_roles se o campo existir na request
         if ($request->has('mass_roles')) {
-            $validationRules['mass_roles'] = 'array';
+            $validationRules['mass_roles']   = 'array';
             $validationRules['mass_roles.*'] = 'exists:roles,id';
         }
 
@@ -81,31 +81,31 @@ class UserRoleController extends Controller
 
         // Debug para entender o que está sendo enviado
         \Log::info('=== MASS UPDATE DEBUG ===', [
-            'user_ids' => $request->user_ids,
+            'user_ids'       => $request->user_ids,
             'organizacao_id' => $request->organizacao_id,
-            'mass_roles' => $request->mass_roles,
+            'mass_roles'     => $request->mass_roles,
             'has_mass_roles' => $request->has('mass_roles'),
-            'request_all' => $request->all()
+            'request_all'    => $request->all(),
         ]);
 
         // Encontrar o role de admin
-        $adminRole = Role::where('name', 'admin')->first();
+        $adminRole    = Role::where('name', 'admin')->first();
         $usersUpdated = 0;
 
         User::whereIn('id', $request->user_ids)->each(function ($user) use ($request, $adminRole, &$usersUpdated) {
             $userUpdated = false;
-            
+
             // Atualizar organização se especificado (não vazio e não "manter atual")
             if ($request->has('organizacao_id') && $request->organizacao_id !== '') {
                 if ($request->organizacao_id === 'null') {
                     $user->organizacao_id = null;
-                    $userUpdated = true;
+                    $userUpdated          = true;
                 } else {
                     // Validar se a organização existe
                     $organizacaoExists = \App\Models\Organizacao::where('id', $request->organizacao_id)->exists();
                     if ($organizacaoExists) {
                         $user->organizacao_id = $request->organizacao_id;
-                        $userUpdated = true;
+                        $userUpdated          = true;
                     }
                 }
             }
@@ -119,7 +119,7 @@ class UserRoleController extends Controller
             // Atualizar roles se especificado
             if ($request->has('process_roles')) {
                 $requestedRoles = $request->mass_roles ?? [];
-                
+
                 // Se o usuário já tem role admin, mantém
                 if ($adminRole && $user->roles->contains($adminRole->id)) {
                     $newRoles = collect($requestedRoles)
@@ -137,7 +137,7 @@ class UserRoleController extends Controller
                         ->toArray();
                     $user->roles()->sync($newRoles);
                 }
-                
+
                 \Log::info("Roles atualizadas para usuário {$user->id}: " . json_encode($requestedRoles));
                 $userUpdated = true;
             }
@@ -202,17 +202,17 @@ class UserRoleController extends Controller
     {
         try {
             $stats = [
-                'created' => 0,
-                'updated' => 0,
-                'errors' => 0,
-                'skipped' => 0,
-                'messages' => []
+                'created'  => 0,
+                'updated'  => 0,
+                'errors'   => 0,
+                'skipped'  => 0,
+                'messages' => [],
             ];
 
             // Conectar ao LDAP
             $ldapConnection = ldap_connect(env('LDAP_HOST'), env('LDAP_PORT'));
 
-            if (!$ldapConnection) {
+            if (! $ldapConnection) {
                 return redirect()->back()->with('error', 'Erro ao conectar com o servidor LDAP.');
             }
 
@@ -222,7 +222,7 @@ class UserRoleController extends Controller
             // Tentar bind com as credenciais administrativas
             $bind = @ldap_bind($ldapConnection, env('LDAP_USERNAME'), env('LDAP_PASSWORD'));
 
-            if (!$bind) {
+            if (! $bind) {
                 ldap_close($ldapConnection);
                 return redirect()->back()->with('error', 'Erro de autenticação no servidor LDAP.');
             }
@@ -233,7 +233,7 @@ class UserRoleController extends Controller
 
             $search = ldap_search($ldapConnection, $baseDn, $filter);
 
-            if (!$search) {
+            if (! $search) {
                 ldap_close($ldapConnection);
                 return redirect()->back()->with('error', 'Erro ao realizar pesquisa no LDAP.');
             }
@@ -244,7 +244,7 @@ class UserRoleController extends Controller
                 $ldapUser = $entries[$i];
                 $username = $ldapUser['samaccountname'][0] ?? null;
 
-                if (!$username) {
+                if (! $username) {
                     $this->logSkippedUser('no_username', 'Usuário sem samaccountname', $stats);
                     continue;
                 }
@@ -269,22 +269,56 @@ class UserRoleController extends Controller
     /**
      * Prepara os dados do usuário a partir do LDAP
      *
-     * @param \LdapRecord\Models\ActiveDirectory\User $ldapUser
+     * @param array $ldapUser
      * @param string $username
      * @return array
      */
     private function prepareUserData($ldapUser, $username)
     {
+        // Converter o GUID para um formato string seguro para o banco
+        $guid = null;
+        if (isset($ldapUser['objectguid']) && ! empty($ldapUser['objectguid'][0])) {
+            $guid = $this->formatGuid($ldapUser['objectguid'][0]);
+        }
+
         return [
             'name'                  => $ldapUser['displayname'][0] ?? null,
             'email'                 => $ldapUser['mail'][0] ?? null,
             'username'              => $username,
+            'guid'                  => $guid,
+            'domain'                => env('LDAP_DOMAIN', 'default'),
             'manager'               => $ldapUser['manager'][0] ?? null,
             'department'            => $ldapUser['departmentnumber'][0] ?? null,
             'employeeNumber'        => $ldapUser['employeenumber'][0] ?? null,
             'active'                => true,
             'force_password_change' => true,
         ];
+    }
+
+    /**
+     * Converte a data do formato dd/mm/yyyy para o formato do banco de dados
+     *
+     * @param string|null $date
+     * @return string|null
+     */
+    private function parseHiringDate($date)
+    {
+        if (empty($date)) {
+            return null;
+        }
+
+        // Extrai apenas a data se houver informações adicionais (ex: "03/11/1999 - Fomento")
+        if (preg_match('/^(\d{2}\/\d{2}\/\d{4})/', $date, $matches)) {
+            try {
+                $dateObj = \DateTime::createFromFormat('d/m/Y', $matches[1]);
+                return $dateObj ? $dateObj->format('Y-m-d') : null;
+            } catch (\Exception $e) {
+                Log::warning("Erro ao converter data de contratação: {$date} - " . $e->getMessage());
+                return null;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -372,11 +406,11 @@ class UserRoleController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'roles'    => 'required|array',
-            'roles.*'  => 'exists:roles,id',
+            'name'           => 'required|string|max:255',
+            'email'          => 'required|string|email|max:255|unique:users',
+            'password'       => 'required|string|min:8|confirmed',
+            'roles'          => 'required|array',
+            'roles.*'        => 'exists:roles,id',
             'organizacao_id' => 'nullable|exists:organizacao,id',
         ]);
 
@@ -412,9 +446,9 @@ class UserRoleController extends Controller
         try {
             // Executar o comando artisan de sincronização
             \Artisan::call('cidades:sincronizar', ['--estado' => 'PR']);
-            
+
             $output = \Artisan::output();
-            
+
             // Verificar se houve sucesso analisando a saída
             if (strpos($output, '✅') !== false) {
                 return redirect()->back()->with('success', 'Cidades do Paraná sincronizadas com sucesso!');
@@ -422,10 +456,38 @@ class UserRoleController extends Controller
                 Log::error('Erro na sincronização de cidades: ' . $output);
                 return redirect()->back()->with('error', 'Erro ao sincronizar cidades. Verifique os logs.');
             }
-            
+
         } catch (\Exception $e) {
             Log::error('Erro ao sincronizar cidades: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Erro interno na sincronização de cidades: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Formata o GUID do LDAP para um formato seguro no banco de dados
+     *
+     * @param string $guid O GUID binário do LDAP
+     * @return string O GUID formatado em UUID string
+     */
+    private function formatGuid($guid)
+    {
+        if (empty($guid)) {
+            return null;
+        }
+
+        // Converte o GUID binário para string hexadecimal
+        $hex_guid = bin2hex($guid);
+
+        // Formata seguindo o padrão UUID
+        $formatted = sprintf(
+            '%s-%s-%s-%s-%s',
+            substr($hex_guid, 6, 2) . substr($hex_guid, 4, 2) . substr($hex_guid, 2, 2) . substr($hex_guid, 0, 2),
+            substr($hex_guid, 10, 2) . substr($hex_guid, 8, 2),
+            substr($hex_guid, 14, 2) . substr($hex_guid, 12, 2),
+            substr($hex_guid, 16, 4),
+            substr($hex_guid, 20, 12)
+        );
+
+        return $formatted;
     }
 }
