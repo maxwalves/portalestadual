@@ -11,8 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('organizacao', function (Blueprint $table) {
-            $table->renameColumn('isAtivo', 'is_ativo');
+        Schema::create('grupo_exigencia', function (Blueprint $table) {
+            $table->id();
+            $table->string('nome', 255);
+            $table->text('descricao')->nullable();
+            $table->boolean('is_ativo')->default(1);
+            $table->timestamps();
         });
     }
 
@@ -21,8 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('organizacao', function (Blueprint $table) {
-            $table->renameColumn('is_ativo', 'isAtivo');
-        });
+        Schema::dropIfExists('grupo_exigencia');
     }
 };

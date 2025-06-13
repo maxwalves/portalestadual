@@ -6,7 +6,19 @@ use Illuminate\Database\Eloquent\Model;
 
 class Organizacao extends Model
 {
-    protected $fillable = ['nome', 'is_ativo'];
+    protected $fillable = [
+        'nome',
+        'tipo',
+        'cnpj',
+        'email',
+        'telefone',
+        'endereco',
+        'responsavel_nome',
+        'responsavel_cargo',
+        'is_ativo',
+        'created_by',
+        'updated_by'
+    ];
     protected $table = 'organizacao';
     protected $primaryKey = 'id';
 

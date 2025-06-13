@@ -12,18 +12,39 @@ class Acao extends Model
     protected $table = 'acoes';
 
     protected $fillable = [
-        'descricao',
         'demanda_id',
-        'projeto_sam',
         'tipo_fluxo_id',
+        'codigo_referencia',
+        'projeto_sam',
+        'nome',
+        'descricao',
         'valor_estimado',
         'valor_contratado',
+        'valor_executado',
+        'percentual_execucao',
         'localizacao',
+        'coordenadas_lat',
+        'coordenadas_lng',
+        'data_inicio_previsto',
+        'data_fim_previsto',
+        'data_inicio_real',
+        'data_fim_real',
+        'status',
+        'created_by',
+        'updated_by',
     ];
 
     protected $casts = [
         'valor_estimado' => 'decimal:2',
         'valor_contratado' => 'decimal:2',
+        'valor_executado' => 'decimal:2',
+        'percentual_execucao' => 'decimal:2',
+        'coordenadas_lat' => 'decimal:8',
+        'coordenadas_lng' => 'decimal:8',
+        'data_inicio_previsto' => 'date',
+        'data_fim_previsto' => 'date',
+        'data_inicio_real' => 'date',
+        'data_fim_real' => 'date',
     ];
 
     /**
@@ -40,6 +61,22 @@ class Acao extends Model
     public function tipoFluxo()
     {
         return $this->belongsTo(TipoFluxo::class);
+    }
+
+    /**
+     * Get the user who created this acao.
+     */
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Get the user who last updated this acao.
+     */
+    public function updater()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 
     /**

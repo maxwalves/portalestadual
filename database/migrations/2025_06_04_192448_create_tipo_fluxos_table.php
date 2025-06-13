@@ -11,13 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tipo_fluxos', function (Blueprint $table) {
+        Schema::create('tipo_fluxo', function (Blueprint $table) {
             $table->id();
-            $table->string('nome');
-            $table->string('descricao')->nullable();
-            $table->string('versao')->nullable();
-            $table->boolean('ativo')->default(true);
+            $table->string('nome', 255);
+            $table->text('descricao')->nullable();
+            $table->string('categoria', 100)->nullable();
+            $table->string('versao', 20)->default('1.0');
+            $table->boolean('is_ativo')->default(true);
             $table->timestamps();
+            $table->integer('created_by')->nullable();
+            $table->integer('updated_by')->nullable();
+            
+            $table->unique(['nome', 'versao']);
+            $table->index('is_ativo');
+            $table->index('categoria');
         });
     }
 
@@ -26,6 +33,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tipo_fluxos');
+        Schema::dropIfExists('tipo_fluxo');
     }
 };

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('descricao');
             $table->foreignId('demanda_id')->constrained('demandas')->onDelete('cascade');
             $table->string('projeto_sam')->nullable();
-            $table->foreignId('tipo_fluxo_id')->constrained('tipo_fluxos')->onDelete('cascade');
+            $table->foreignId('tipo_fluxo_id')->constrained('tipo_fluxo')->onDelete('cascade');
             $table->decimal('valor_estimado', 15, 2)->nullable();
             $table->decimal('valor_contratado', 15, 2)->nullable();
             $table->string('localizacao')->nullable();

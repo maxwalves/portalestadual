@@ -195,14 +195,14 @@ return [
     */
 
     'classes_body'                            => '',
-    'classes_brand'                           => '',
-    'classes_brand_text'                      => '',
+    'classes_brand'                           => 'navbar-light bg-light',
+    'classes_brand_text'                      => 'text-dark',
     'classes_content_wrapper'                 => '',
     'classes_content_header'                  => '',
     'classes_content'                         => '',
-    'classes_sidebar'                         => 'sidebar-dark-primary elevation-4',
-    'classes_sidebar_nav'                     => '',
-    'classes_topnav'                          => 'navbar-white navbar-light',
+    'classes_sidebar'                         => 'sidebar-light-primary elevation-2',
+    'classes_sidebar_nav'                     => 'nav-flat nav-child-indent',
+    'classes_topnav'                          => 'navbar-light bg-light',
     'classes_topnav_nav'                      => 'navbar-expand',
     'classes_topnav_container'                => 'container',
 
@@ -316,40 +316,177 @@ return [
 
         // Sidebar items:
         [
-            'text' => 'Dashboard',
-            'url'  => 'dashboard',
-            'icon' => 'fas fa-fw fa-tachometer-alt',
+            'text'        => 'Dashboard',
+            'url'         => 'dashboard',
+            'icon'        => 'fas fa-fw fa-tachometer-alt',
+            'icon_color'  => 'primary',
         ],
+        
+        // ===== SEPARADOR: ADMINISTRAÇÃO =====
         [
-            'text'    => 'Usuários',
-            'icon'    => 'fas fa-fw fa-users',
-            'can'     => 'admin',
-            'url'  => 'admin/users/roles',
+            'header' => 'ADMINISTRAÇÃO',
+            'can'    => ['admin', 'admin_paranacidade'],
         ],
+        
+        // Gestão de Usuários - Apenas Admin Sistema
         [
-            'text' => 'Organizações',
-            'url'  => 'organizacoes',
-            'icon' => 'fas fa-building',
+            'text'        => 'Usuários',
+            'icon'        => 'fas fa-fw fa-users',
+            'icon_color'  => 'red',
+            'can'         => ['admin'],
+            'url'         => 'admin/users/roles',
         ],
+        
+        // Organizações - Apenas Admins
         [
-            'text' => 'Termos de Adesão',
-            'url'  => 'termos-adesao',
-            'icon' => 'fas fa-file-signature',
+            'text'        => 'Organizações',
+            'url'         => 'organizacoes',
+            'icon'        => 'fas fa-building',
+            'icon_color'  => 'red',
+            'can'         => ['admin', 'admin_paranacidade'],
         ],
+        
+        // ===== SEPARADOR: GESTÃO DE OBRAS =====
         [
-            'text' => 'Cadastro Demanda GMS',
-            'url'  => 'cadastros-demanda-gms',
-            'icon' => 'fas fa-database',
+            'header' => 'GESTÃO DE OBRAS',
         ],
+        
+        // Termos de Adesão
         [
-            'text' => 'Demandas',
-            'url'  => 'demandas',
-            'icon' => 'fas fa-tasks',
+            'text'        => 'Termos de Adesão',
+            'url'         => 'termos-adesao',
+            'icon'        => 'fas fa-file-signature',
+            'icon_color'  => 'green',
+            'can'         => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
         ],
+        
+        // Demandas e Ações
         [
-            'text' => 'Ações',
-            'url'  => 'acoes',
-            'icon' => 'fas fa-rocket',
+            'text'        => 'Demandas e Ações',
+            'icon'        => 'fas fa-tasks',
+            'icon_color'  => 'green',
+            'can'         => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
+            'submenu'     => [
+                [
+                    'text'        => 'Cadastro GMS',
+                    'url'         => 'cadastros-demanda-gms',
+                    'icon'        => 'fas fa-database',
+                    'icon_color'  => 'green',
+                    'can'         => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria'],
+                ],
+                [
+                    'text'        => 'Demandas',
+                    'url'         => 'demandas',
+                    'icon'        => 'fas fa-clipboard-list',
+                    'icon_color'  => 'green',
+                    'can'         => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
+                ],
+                [
+                    'text'        => 'Ações/Obras',
+                    'url'         => 'acoes',
+                    'icon'        => 'fas fa-rocket',
+                    'icon_color'  => 'green',
+                    'can'         => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
+                ],
+            ],
+        ],
+        
+        // ===== SEPARADOR: DOCUMENTOS =====
+        [
+            'header' => 'DOCUMENTOS',
+            'can'    => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
+        ],
+        
+        // Gestão Documental
+        [
+            'text'        => 'Gestão Documental',
+            'icon'        => 'fas fa-folder-open',
+            'icon_color'  => 'blue',
+            'can'         => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
+            'submenu'     => [
+                [
+                    'text'        => 'Tipos de Documento',
+                    'url'         => 'tipos-documento',
+                    'icon'        => 'fas fa-file-alt',
+                    'icon_color'  => 'blue',
+                    'can'         => ['admin', 'admin_paranacidade'],
+                ],
+                [
+                    'text'        => 'Templates',
+                    'url'         => 'template-documentos',
+                    'icon'        => 'fas fa-file-medical',
+                    'icon_color'  => 'blue',
+                    'can'         => ['admin', 'admin_paranacidade'],
+                ],
+                [
+                    'text'        => 'Documentos',
+                    'url'         => 'documentos',
+                    'icon'        => 'fas fa-archive',
+                    'icon_color'  => 'blue',
+                    'can'         => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
+                ],
+            ],
+        ],
+        
+        // ===== SEPARADOR: ACOMPANHAMENTO =====
+        [
+            'header' => 'ACOMPANHAMENTO',
+            'can'    => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
+        ],
+        
+        // Notificações
+        [
+            'text'        => 'Notificações',
+            'url'         => 'notificacoes',
+            'icon'        => 'fas fa-bell',
+            'icon_color'  => 'yellow',
+            'can'         => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
+        ],
+        
+        // Histórico
+        [
+            'text'        => 'Histórico de Etapas',
+            'url'         => 'historico-etapas',
+            'icon'        => 'fas fa-history',
+            'icon_color'  => 'yellow',
+            'can'         => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
+        ],
+        
+        // ===== SEPARADOR: CONFIGURAÇÕES =====
+        [
+            'header' => 'CONFIGURAÇÕES',
+            'can'    => ['admin', 'admin_paranacidade'],
+        ],
+        
+        // Workflow
+        [
+            'text'        => 'Workflow',
+            'icon'        => 'fas fa-cogs',
+            'icon_color'  => 'purple',
+            'can'         => ['admin', 'admin_paranacidade'],
+            'submenu'     => [
+                [
+                    'text'        => 'Tipos de Fluxo',
+                    'url'         => 'tipos-fluxo',
+                    'icon'        => 'fas fa-route',
+                    'icon_color'  => 'purple',
+                    'can'         => ['admin', 'admin_paranacidade'],
+                ],
+                [
+                    'text'        => 'Etapas de Fluxo',
+                    'url'         => 'etapas-fluxo',
+                    'icon'        => 'fas fa-stream',
+                    'icon_color'  => 'purple',
+                    'can'         => ['admin', 'admin_paranacidade'],
+                ],
+                [
+                    'text'        => 'Status',
+                    'url'         => 'status',
+                    'icon'        => 'fas fa-flag',
+                    'icon_color'  => 'purple',
+                    'can'         => ['admin', 'admin_paranacidade'],
+                ],
+            ],
         ],
     ],
 
@@ -373,6 +510,7 @@ return [
         JeroenNoten\LaravelAdminLte\Menu\Filters\ClassesFilter::class,
         JeroenNoten\LaravelAdminLte\Menu\Filters\LangFilter::class,
         JeroenNoten\LaravelAdminLte\Menu\Filters\DataFilter::class,
+        App\Menu\Filters\RoleFilter::class,
     ],
 
     /*
@@ -443,6 +581,16 @@ return [
                 ],
             ],
         ],
+        'CustomSidebar' => [
+            'active' => true,
+            'files'  => [
+                [
+                    'type'     => 'css',
+                    'asset'    => true,
+                    'location' => 'css/custom-sidebar.css',
+                ],
+            ],
+        ],
         'Pace'        => [
             'active' => false,
             'files'  => [
@@ -506,4 +654,134 @@ return [
     */
 
     'livewire'                                => false,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Custom CSS
+    |--------------------------------------------------------------------------
+    |
+    | Here we can add custom CSS to override default styles.
+    |
+    */
+    
+    'custom_css' => '
+        /* ===== PERSONALIZAÇÃO DO SIDEBAR ===== */
+        
+        /* Fundo do sidebar com gradiente claro */
+        .main-sidebar {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+            box-shadow: 2px 0 6px rgba(0,0,0,0.1) !important;
+        }
+        
+        /* Links principais do menu - azul escuro */
+        .sidebar-light-primary .nav-sidebar > .nav-item > .nav-link {
+            color: #1e3a8a !important;
+            font-weight: 500;
+            border-radius: 0.375rem;
+            margin: 0.125rem 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        /* Hover nos links principais */
+        .sidebar-light-primary .nav-sidebar > .nav-item > .nav-link:hover {
+            background-color: #dbeafe !important;
+            color: #1e40af !important;
+            transform: translateX(2px);
+        }
+        
+        /* Link ativo/selecionado */
+        .sidebar-light-primary .nav-sidebar > .nav-item.menu-open > .nav-link,
+        .sidebar-light-primary .nav-sidebar > .nav-item > .nav-link.active {
+            background-color: #3b82f6 !important;
+            color: #ffffff !important;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+        }
+        
+        /* Cabeçalhos das seções (separadores) */
+        .sidebar-light-primary .nav-header {
+            color: #374151 !important;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background-color: rgba(59, 130, 246, 0.1) !important;
+            margin: 0.75rem 0.5rem 0.5rem 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            border-left: 3px solid #3b82f6;
+        }
+        
+        /* Submenus (nav-treeview) */
+        .sidebar-light-primary .nav-treeview > .nav-item > .nav-link {
+            color: #4b5563 !important;
+            padding-left: 2.5rem;
+            font-size: 0.875rem;
+            border-radius: 0.25rem;
+            margin: 0.125rem 0.5rem;
+        }
+        
+        /* Hover nos submenus */
+        .sidebar-light-primary .nav-treeview > .nav-item > .nav-link:hover {
+            background-color: #f3f4f6 !important;
+            color: #1e40af !important;
+            padding-left: 2.75rem;
+            transition: all 0.2s ease;
+        }
+        
+        /* Submenu ativo */
+        .sidebar-light-primary .nav-treeview > .nav-item > .nav-link.active {
+            background-color: #60a5fa !important;
+            color: #ffffff !important;
+            font-weight: 500;
+        }
+        
+        /* ===== ÁREA DA MARCA/LOGO ===== */
+        .brand-link {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+            border-bottom: 2px solid #e5e7eb !important;
+            padding: 1rem !important;
+        }
+        
+        .brand-text {
+            color: #1e3a8a !important;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        
+        /* ===== SCROLLBAR PERSONALIZADA ===== */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        /* ===== ÍCONES COLORIDOS ===== */
+        .nav-icon.text-red { color: #dc2626 !important; }
+        .nav-icon.text-green { color: #16a34a !important; }
+        .nav-icon.text-blue { color: #2563eb !important; }
+        .nav-icon.text-yellow { color: #d97706 !important; }
+        .nav-icon.text-purple { color: #9333ea !important; }
+        .nav-icon.text-primary { color: #3b82f6 !important; }
+        
+        /* ===== ANIMAÇÕES SUAVES ===== */
+        .nav-sidebar .nav-item {
+            transition: all 0.2s ease;
+        }
+        
+        .nav-sidebar .nav-link {
+            transition: all 0.3s ease;
+        }
+    ',
 ];

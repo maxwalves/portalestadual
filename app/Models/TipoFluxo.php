@@ -9,17 +9,20 @@ class TipoFluxo extends Model
 {
     use HasFactory;
 
-    protected $table = 'tipo_fluxos';
+    protected $table = 'tipo_fluxo';
 
     protected $fillable = [
         'nome',
         'descricao',
+        'categoria',
         'versao',
-        'ativo',
+        'is_ativo',
+        'created_by',
+        'updated_by',
     ];
 
     protected $casts = [
-        'ativo' => 'boolean',
+        'is_ativo' => 'boolean',
     ];
 
     /**

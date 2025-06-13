@@ -52,21 +52,117 @@ if (app()->environment('local')) {
 }
 
 Route::middleware(['auth'])->group(function () {
-    Route::resource('organizacoes', \App\Http\Controllers\OrganizacaoController::class)->parameters([
-        'organizacoes' => 'organizacao'
-    ]);
-    Route::resource('termos-adesao', \App\Http\Controllers\TermoAdesaoController::class)->parameters([
-        'termos-adesao' => 'termo'
-    ]);
-    Route::resource('cadastros-demanda-gms', \App\Http\Controllers\CadastroDemandaGmsController::class);
-    Route::post('cadastros-demanda-gms/sync', [\App\Http\Controllers\CadastroDemandaGmsController::class, 'sync'])->name('cadastros-demanda-gms.sync');
-    Route::resource('demandas', \App\Http\Controllers\DemandaController::class);
-    Route::resource('acoes', \App\Http\Controllers\AcaoController::class)->parameters([
-        'acoes' => 'acao'
-    ]);
     
-    // API para buscar cidades do Paraná
-    Route::get('api/cidades-parana', [\App\Http\Controllers\AcaoController::class, 'getCidadesParana'])->name('api.cidades-parana');
+    // ===== ROTAS COM CONTROLE DE ACESSO POR ORGANIZAÇÃO =====
+    
+    // Organizações - apenas admins podem gerenciar
+    Route::middleware(['role:admin|admin_paranacidade'])->group(function () {
+        Route::resource('organizacoes', \App\Http\Controllers\OrganizacaoController::class)->parameters([
+            'organizacoes' => 'organizacao'
+        ]);
+    });
+
+    // Termos de Adesão - controle por organização
+    Route::middleware([\App\Http\Middleware\CheckOrgAccess::class.':termo_adesao'])->group(function () {
+        Route::resource('termos-adesao', \App\Http\Controllers\TermoAdesaoController::class)->parameters([
+            'termos-adesao' => 'termo'
+        ]);
+    });
+
+    // Demandas - controle por organização
+    Route::middleware([\App\Http\Middleware\CheckOrgAccess::class.':demanda'])->group(function () {
+        Route::resource('cadastros-demanda-gms', \App\Http\Controllers\CadastroDemandaGmsController::class);
+        Route::post('cadastros-demanda-gms/sync', [\App\Http\Controllers\CadastroDemandaGmsController::class, 'sync'])->name('cadastros-demanda-gms.sync');
+        Route::resource('demandas', \App\Http\Controllers\DemandaController::class);
+    });
+
+    // Ações - controle por organização
+    Route::middleware([\App\Http\Middleware\CheckOrgAccess::class.':acao'])->group(function () {
+        Route::resource('acoes', \App\Http\Controllers\AcaoController::class)->parameters([
+            'acoes' => 'acao'
+        ]);
+        // API para buscar cidades do Paraná
+        Route::get('api/cidades-parana', [\App\Http\Controllers\AcaoController::class, 'getCidadesParana'])->name('api.cidades-parana');
+    });
+    
+    // ===== ROTAS DE GESTÃO DE WORKFLOW - APENAS ADMINS PARANACIDADE E SISTEMA =====
+    
+    Route::middleware(['role:admin|admin_paranacidade'])->group(function () {
+        Route::resource('tipos-fluxo', \App\Http\Controllers\TipoFluxoController::class)->parameters([
+            'tipos-fluxo' => 'tipo_fluxo'
+        ]);
+        // Nova rota para gerenciar etapas de um tipo de fluxo
+        Route::get('tipos-fluxo/{tipo_fluxo}/etapas', [\App\Http\Controllers\TipoFluxoController::class, 'etapas'])->name('tipos-fluxo.etapas');
+
+        Route::resource('etapas-fluxo', \App\Http\Controllers\EtapaFluxoController::class)->parameters([
+            'etapas-fluxo' => 'etapa_fluxo'
+        ]);
+    });
+
+    // ===== ROTAS DE GESTÃO DOCUMENTAL - APENAS ADMINS PARANACIDADE E SISTEMA =====
+    
+    Route::middleware(['role:admin|admin_paranacidade'])->group(function () {
+        Route::resource('tipos-documento', \App\Http\Controllers\TipoDocumentoController::class)->parameters([
+            'tipos-documento' => 'tipo_documento'
+        ]);
+        Route::post('tipos-documento/{tipo_documento}/toggle-ativo', [\App\Http\Controllers\TipoDocumentoController::class, 'toggleAtivo'])->name('tipos-documento.toggle-ativo');
+        
+        Route::resource('template-documentos', \App\Http\Controllers\TemplateDocumentoController::class)->parameters([
+            'template-documentos' => 'template_documento'
+        ]);
+        Route::get('template-documentos/{template_documento}/download-modelo', [\App\Http\Controllers\TemplateDocumentoController::class, 'downloadModelo'])->name('template-documentos.download-modelo');
+        Route::get('template-documentos/{template_documento}/download-exemplo', [\App\Http\Controllers\TemplateDocumentoController::class, 'downloadExemplo'])->name('template-documentos.download-exemplo');
+        Route::post('template-documentos/reordenar', [\App\Http\Controllers\TemplateDocumentoController::class, 'reordenar'])->name('template-documentos.reordenar');
+        
+        // APIs de apoio para gestão documental
+        Route::get('api/tipos-documento/ativos', [\App\Http\Controllers\TipoDocumentoController::class, 'apiTiposAtivos'])->name('api.tipos-documento.ativos');
+        Route::post('api/tipos-documento/{tipo_documento}/verificar-compatibilidade', [\App\Http\Controllers\TipoDocumentoController::class, 'verificarCompatibilidade'])->name('api.tipos-documento.verificar-compatibilidade');
+    });
+
+    // ===== ROTAS DE DOCUMENTOS - ACESSO BASEADO EM ORGANIZAÇÃO =====
+    
+    Route::middleware([\App\Http\Middleware\CheckOrgAccess::class])->group(function () {
+        Route::resource('documentos', \App\Http\Controllers\DocumentoController::class);
+        Route::get('documentos/{documento}/download', [\App\Http\Controllers\DocumentoController::class, 'download'])->name('documentos.download');
+        Route::post('documentos/{documento}/aprovar', [\App\Http\Controllers\DocumentoController::class, 'aprovar'])->name('documentos.aprovar');
+        Route::post('documentos/{documento}/reprovar', [\App\Http\Controllers\DocumentoController::class, 'reprovar'])->name('documentos.reprovar');
+        Route::post('documentos/{documento}/nova-versao', [\App\Http\Controllers\DocumentoController::class, 'novaVersao'])->name('documentos.nova-versao');
+    });
+    
+    // ===== ROTAS DO SISTEMA DE WORKFLOW - STATUS, NOTIFICAÇÕES E HISTÓRICO =====
+    
+    // Status - apenas admins podem gerenciar
+    Route::middleware(['role:admin|admin_paranacidade'])->group(function () {
+        Route::resource('status', \App\Http\Controllers\StatusController::class);
+        Route::post('status/{status}/toggle-ativo', [\App\Http\Controllers\StatusController::class, 'toggleAtivo'])->name('status.toggle-ativo');
+        // APIs do Sistema de Workflow
+        Route::get('api/status/categoria', [\App\Http\Controllers\StatusController::class, 'apiPorCategoria'])->name('api.status.categoria');
+        Route::get('api/status/etapa', [\App\Http\Controllers\StatusController::class, 'apiStatusEtapa'])->name('api.status.etapa');
+    });
+    
+    // Notificações - acesso baseado em organização
+    Route::middleware([\App\Http\Middleware\CheckOrgAccess::class])->group(function () {
+        Route::resource('notificacoes', \App\Http\Controllers\NotificacaoController::class)->only(['index', 'show']);
+        Route::post('notificacoes/{notificacao}/marcar-lida', [\App\Http\Controllers\NotificacaoController::class, 'marcarLida'])->name('notificacoes.marcar-lida');
+        Route::post('notificacoes/marcar-todas-lidas', [\App\Http\Controllers\NotificacaoController::class, 'marcarTodasLidas'])->name('notificacoes.marcar-todas-lidas');
+        Route::post('notificacoes/enviar', [\App\Http\Controllers\NotificacaoController::class, 'enviar'])->name('notificacoes.enviar');
+        Route::get('notificacoes/{notificacao}/reenviar', [\App\Http\Controllers\NotificacaoController::class, 'reenviar'])->name('notificacoes.reenviar');
+        // APIs de notificações
+        Route::get('api/notificacoes/contadores', [\App\Http\Controllers\NotificacaoController::class, 'apiContadores'])->name('api.notificacoes.contadores');
+        Route::get('api/notificacoes/recentes', [\App\Http\Controllers\NotificacaoController::class, 'apiRecentes'])->name('api.notificacoes.recentes');
+    });
+    
+    // Histórico de Etapas - acesso baseado em organização
+    Route::middleware([\App\Http\Middleware\CheckOrgAccess::class])->group(function () {
+        Route::get('historico-etapas', [\App\Http\Controllers\HistoricoEtapaController::class, 'index'])->name('historico-etapas.index');
+        Route::get('historico-etapas/{historico}', [\App\Http\Controllers\HistoricoEtapaController::class, 'show'])->name('historico-etapas.show');
+        Route::get('historico-etapas/execucao/{execucaoEtapa}', [\App\Http\Controllers\HistoricoEtapaController::class, 'porExecucao'])->name('historico-etapas.por-execucao');
+        Route::get('historico-etapas/usuario/{usuario}', [\App\Http\Controllers\HistoricoEtapaController::class, 'relatorioUsuario'])->name('historico-etapas.relatorio-usuario');
+        Route::get('historico-etapas/exportar', [\App\Http\Controllers\HistoricoEtapaController::class, 'exportar'])->name('historico-etapas.exportar');
+        // APIs de histórico
+        Route::get('api/historico-etapas/timeline/{execucaoEtapa}', [\App\Http\Controllers\HistoricoEtapaController::class, 'apiTimeline'])->name('api.historico-etapas.timeline');
+        Route::get('api/historico-etapas/estatisticas', [\App\Http\Controllers\HistoricoEtapaController::class, 'apiEstatisticas'])->name('api.historico-etapas.estatisticas');
+    });
 });
 
 require __DIR__ . '/auth.php';

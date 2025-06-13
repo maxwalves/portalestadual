@@ -138,7 +138,14 @@ class User extends Authenticatable implements LdapAuthenticatable
         if (is_string($role)) {
             return $this->roles->contains('name', $role);
         }
-        return ! ! $role->intersect($this->roles)->count();
+        
+        // Se for array, converter para Collection e verificar interseção
+        if (is_array($role)) {
+            return collect($role)->intersect($this->roles->pluck('name'))->count() > 0;
+        }
+        
+        // Se for Collection, verificar interseção
+        return ! ! $role->intersect($this->roles->pluck('name'))->count();
     }
 
     public function hasAnyRole($roles): bool
