@@ -83,12 +83,26 @@ class EtapaFluxoController extends Controller
         $gruposExigencia = GrupoExigencia::where('is_ativo', true)->orderBy('nome')->get();
         $organizacoes = Organizacao::where('is_ativo', true)->orderBy('nome')->get();
         
+        // Carregar dados para configuração de status e transições
+        $statusDisponiveis = \App\Models\Status::where('is_ativo', true)
+            ->orderBy('ordem')
+            ->get();
+            
+        $etapasDisponiveis = EtapaFluxo::where('tipo_fluxo_id', $etapa_fluxo->tipo_fluxo_id)
+            ->orderBy('ordem_execucao')
+            ->get();
+            
+        // Carregar opções de status existentes
+        $etapa_fluxo->load(['etapaStatusOpcoes.status', 'transicoesOrigem.statusCondicao', 'transicoesOrigem.etapaDestino']);
+        
         return view('etapas_fluxo.edit', [
             'etapaFluxo' => $etapa_fluxo,
             'tiposFluxo' => $tiposFluxo,
             'modulos' => $modulos,
             'gruposExigencia' => $gruposExigencia,
             'organizacoes' => $organizacoes,
+            'statusDisponiveis' => $statusDisponiveis,
+            'etapasDisponiveis' => $etapasDisponiveis,
         ]);
     }
 

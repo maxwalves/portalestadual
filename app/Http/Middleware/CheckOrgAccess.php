@@ -45,6 +45,11 @@ class CheckOrgAccess
             abort(403, 'Usuário deve estar vinculado a uma organização.');
         }
 
+        // Verificar se é uma rota de workflow - tratamento especial
+        if ($this->isWorkflowRoute($request)) {
+            return $this->checkWorkflowAccess($request, $next, $user);
+        }
+
         // Admin de Secretaria - acesso completo à sua secretaria
         if ($user->hasRole('admin_secretaria')) {
             return $this->checkSecretariaAccess($request, $next, $user, $resource);
@@ -61,6 +66,119 @@ class CheckOrgAccess
 
         // Se chegou até aqui, não tem permissão
         abort(403, 'Acesso não autorizado para este recurso.');
+    }
+
+    /**
+     * Verificar se é uma rota de workflow
+     */
+    private function isWorkflowRoute(Request $request): bool
+    {
+        return str_starts_with($request->route()->getName() ?? '', 'workflow.');
+    }
+
+    /**
+     * Verificar acesso específico para rotas de workflow
+     */
+    private function checkWorkflowAccess(Request $request, Closure $next, $user): Response
+    {
+        // Para rotas de workflow, verificar acesso baseado no recurso específico
+        $routeName = $request->route()->getName();
+        
+        // Se há execução na rota, verificar acesso específico
+        $execucao = $request->route('execucao');
+        if ($execucao) {
+            return $this->checkExecucaoEtapaAccess($request, $next, $user, $execucao);
+        }
+
+        // Se há ação na rota, verificar acesso à ação
+        $acao = $request->route('acao');
+        if ($acao) {
+            return $this->checkAcaoWorkflowAccess($request, $next, $user, $acao);
+        }
+
+        // Para outras rotas de workflow sem parâmetros específicos
+        return $next($request);
+    }
+
+    /**
+     * Verificar acesso a execução de etapa
+     */
+    private function checkExecucaoEtapaAccess(Request $request, Closure $next, $user, $execucao): Response
+    {
+        // Carregar relacionamentos necessários
+        if (!$execucao->relationLoaded('etapaFluxo')) {
+            $execucao->load('etapaFluxo');
+        }
+        if (!$execucao->relationLoaded('acao.demanda.termoAdesao')) {
+            $execucao->load('acao.demanda.termoAdesao');
+        }
+
+        $userOrgId = $user->organizacao_id;
+        $etapaFluxo = $execucao->etapaFluxo;
+        $organizacaoAcao = $execucao->acao->demanda->termoAdesao->organizacao_id;
+
+        // Permitir acesso se for:
+        // 1. Organização que criou a ação (solicitante da ação)
+        // 2. Organização solicitante da etapa
+        // 3. Organização executora da etapa
+        $temAcesso = ($userOrgId === $organizacaoAcao) ||
+                     ($userOrgId === $etapaFluxo->organizacao_solicitante_id) ||
+                     ($userOrgId === $etapaFluxo->organizacao_executora_id);
+
+        if (!$temAcesso) {
+            \Log::warning('Acesso negado para execução de etapa', [
+                'user_id' => $user->id,
+                'user_org_id' => $userOrgId,
+                'execucao_id' => $execucao->id,
+                'org_acao' => $organizacaoAcao,
+                'org_solicitante_etapa' => $etapaFluxo->organizacao_solicitante_id,
+                'org_executora_etapa' => $etapaFluxo->organizacao_executora_id,
+                'route' => $request->route()->getName()
+            ]);
+            abort(403, 'Você não tem acesso a esta execução de etapa.');
+        }
+
+        \Log::info('Acesso concedido para execução de etapa', [
+            'user_id' => $user->id,
+            'user_org_id' => $userOrgId,
+            'execucao_id' => $execucao->id,
+            'route' => $request->route()->getName()
+        ]);
+
+        return $next($request);
+    }
+
+    /**
+     * Verificar acesso a ação no contexto de workflow
+     */
+    private function checkAcaoWorkflowAccess(Request $request, Closure $next, $user, $acao): Response
+    {
+        // Carregar demanda e termo se não estiverem carregados
+        if (!$acao->relationLoaded('demanda.termoAdesao')) {
+            $acao->load('demanda.termoAdesao');
+        }
+
+        $userOrgId = $user->organizacao_id;
+        $organizacaoAcao = $acao->demanda->termoAdesao->organizacao_id;
+
+        // No workflow, também precisamos verificar se o usuário está envolvido nas etapas
+        // Por simplicidade, vamos permitir acesso se for da organização da ação
+        // ou se estiver envolvido em alguma etapa do fluxo
+        if ($userOrgId !== $organizacaoAcao) {
+            // Verificar se está envolvido em alguma etapa
+            $estaNasEtapas = \App\Models\EtapaFluxo::where('tipo_fluxo_id', $acao->tipo_fluxo_id)
+                ->where(function ($query) use ($userOrgId) {
+                    $query->where('organizacao_solicitante_id', $userOrgId)
+                          ->orWhere('organizacao_executora_id', $userOrgId);
+                })
+                ->exists();
+
+            if (!$estaNasEtapas) {
+                abort(403, 'Você não tem acesso a esta ação.');
+            }
+        }
+
+        return $next($request);
     }
 
     /**

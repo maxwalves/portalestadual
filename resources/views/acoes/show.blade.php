@@ -34,10 +34,16 @@
                             Informações da Ação
                         </h3>
                         <div class="card-tools">
-                            <a href="{{ route('acoes.edit', $acao) }}" class="btn btn-warning btn-sm">
-                                <i class="fas fa-edit"></i>
-                                Editar
-                            </a>
+                            <div class="btn-group">
+                                <a href="{{ route('workflow.acao', $acao) }}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-route"></i>
+                                    Workflow
+                                </a>
+                                <a href="{{ route('acoes.edit', $acao) }}" class="btn btn-warning btn-sm">
+                                    <i class="fas fa-edit"></i>
+                                    Editar
+                                </a>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body">

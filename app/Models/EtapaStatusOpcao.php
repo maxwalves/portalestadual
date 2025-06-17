@@ -2,27 +2,18 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EtapaStatusOpcao extends Model
 {
-    use HasFactory;
-
     protected $table = 'etapa_status_opcoes';
-
-    // Não tem auto-incrementing ID pois usa chave composta
-    public $incrementing = false;
     
-    // Chave primária composta
+    // Configurar para chave primária composta
     protected $primaryKey = ['etapa_fluxo_id', 'status_id'];
-    
-    // Tipo da chave primária
-    protected $keyType = 'array';
-
-    // Não tem updated_at, apenas created_at
+    public $incrementing = false;
     public $timestamps = false;
-
+    
     protected $fillable = [
         'etapa_fluxo_id',
         'status_id',
@@ -33,112 +24,108 @@ class EtapaStatusOpcao extends Model
     ];
 
     protected $casts = [
-        'ordem' => 'integer',
         'is_padrao' => 'boolean',
         'mostra_para_responsavel' => 'boolean',
         'requer_justificativa' => 'boolean',
-        'created_at' => 'datetime',
+        'ordem' => 'integer',
     ];
 
-    protected $dates = [
-        'created_at',
-    ];
-
-    // Relacionamentos
-
     /**
-     * Etapa do fluxo
-     */
-    public function etapaFluxo()
-    {
-        return $this->belongsTo(EtapaFluxo::class, 'etapa_fluxo_id');
-    }
-
-    /**
-     * Status disponível
-     */
-    public function status()
-    {
-        return $this->belongsTo(Status::class, 'status_id');
-    }
-
-    // Scopes
-
-    /**
-     * Scope por etapa
-     */
-    public function scopePorEtapa($query, $etapaId)
-    {
-        return $query->where('etapa_fluxo_id', $etapaId);
-    }
-
-    /**
-     * Scope para status padrão
-     */
-    public function scopePadrao($query)
-    {
-        return $query->where('is_padrao', true);
-    }
-
-    /**
-     * Scope para status visíveis ao responsável
-     */
-    public function scopeVisivelResponsavel($query)
-    {
-        return $query->where('mostra_para_responsavel', true);
-    }
-
-    /**
-     * Scope ordenado
-     */
-    public function scopeOrdenado($query)
-    {
-        return $query->orderBy('ordem')->orderBy('status_id');
-    }
-
-    // Métodos auxiliares
-
-    /**
-     * Verifica se é status padrão
-     */
-    public function isPadrao(): bool
-    {
-        return $this->is_padrao;
-    }
-
-    /**
-     * Verifica se é visível ao responsável
-     */
-    public function isVisivelResponsavel(): bool
-    {
-        return $this->mostra_para_responsavel;
-    }
-
-    /**
-     * Verifica se requer justificativa
-     */
-    public function requerJustificativa(): bool
-    {
-        return $this->requer_justificativa;
-    }
-
-    /**
-     * Override do método getKey para chave composta
+     * Override para o método getKey() para chave primária composta
      */
     public function getKey()
     {
-        $attributes = [];
-        foreach ($this->getKeyName() as $key) {
-            $attributes[$key] = $this->getAttribute($key);
+        $key = [];
+        foreach ($this->getKeyName() as $keyName) {
+            $key[$keyName] = $this->getAttribute($keyName);
         }
-        return $attributes;
+        return $key;
     }
 
     /**
-     * Override do método getKeyName para chave composta
+     * Override para o método getKeyName() para chave primária composta  
      */
     public function getKeyName()
     {
         return $this->primaryKey;
     }
-}
+
+    /**
+     * Relacionamento com EtapaFluxo
+     */
+    public function etapaFluxo(): BelongsTo
+    {
+        return $this->belongsTo(EtapaFluxo::class);
+    }
+
+    /**
+     * Relacionamento com Status
+     */
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(Status::class);
+    }
+
+    /**
+     * Buscar opções de status disponíveis para uma etapa e usuário
+     */
+    public static function getOpcoesDisponiveis($etapaFluxoId, $usuarioOrganizacaoId)
+    {
+        return static::where('etapa_fluxo_id', $etapaFluxoId)
+            ->where('mostra_para_responsavel', true)
+            ->with(['status', 'etapaFluxo'])
+            ->whereHas('etapaFluxo', function ($query) use ($usuarioOrganizacaoId) {
+                $query->where(function($q) use ($usuarioOrganizacaoId) {
+                    $q->where('organizacao_solicitante_id', $usuarioOrganizacaoId)
+                      ->orWhere('organizacao_executora_id', $usuarioOrganizacaoId);
+                });
+            })
+            ->orderBy('ordem')
+            ->get();
+    }
+
+    /**
+     * Criar ou atualizar uma opção de status
+     * Para chave primária composta, usamos sempre updateOrInsert do DB
+     */
+    public static function createOrUpdate($etapaFluxoId, $statusId, $dados)
+    {
+        $conditions = [
+            'etapa_fluxo_id' => $etapaFluxoId,
+            'status_id' => $statusId
+        ];
+
+        $values = array_merge($dados, $conditions);
+
+        // Usar updateOrInsert que funciona bem com chaves compostas
+        \DB::table('etapa_status_opcoes')->updateOrInsert($conditions, $values);
+
+        // Retornar o registro atualizado/criado
+        return static::where('etapa_fluxo_id', $etapaFluxoId)
+            ->where('status_id', $statusId)
+            ->first();
+    }
+
+    /**
+     * Verificar se um status é válido para uma etapa
+     */
+    public static function isStatusValido($etapaFluxoId, $statusId)
+    {
+        return static::where('etapa_fluxo_id', $etapaFluxoId)
+            ->where('status_id', $statusId)
+            ->where('mostra_para_responsavel', true)
+            ->exists();
+    }
+
+    /**
+     * Verificar se um status requer justificativa
+     */
+    public static function requerJustificativaStatus($etapaFluxoId, $statusId)
+    {
+        $opcao = static::where('etapa_fluxo_id', $etapaFluxoId)
+            ->where('status_id', $statusId)
+            ->first();
+            
+        return $opcao ? $opcao->requer_justificativa : false;
+    }
+} 

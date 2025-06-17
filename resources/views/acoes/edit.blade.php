@@ -51,18 +51,18 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label for="descricao">
-                                            <i class="fas fa-tasks"></i>
-                                            Descrição <span class="text-danger">*</span>
+                                        <label for="nome">
+                                            <i class="fas fa-tag"></i>
+                                            Nome da Ação <span class="text-danger">*</span>
                                         </label>
                                         <input type="text" 
-                                               class="form-control @error('descricao') is-invalid @enderror" 
-                                               id="descricao" 
-                                               name="descricao" 
-                                               value="{{ old('descricao', $acao->descricao) }}" 
-                                               placeholder="Digite a descrição da ação"
+                                               class="form-control @error('nome') is-invalid @enderror" 
+                                               id="nome" 
+                                               name="nome" 
+                                               value="{{ old('nome', $acao->nome) }}" 
+                                               placeholder="Digite o nome da ação"
                                                required>
-                                        @error('descricao')
+                                        @error('nome')
                                             <span class="invalid-feedback">{{ $message }}</span>
                                         @enderror
                                     </div>
@@ -87,6 +87,25 @@
                                             @endforeach
                                         </select>
                                         @error('demanda_id')
+                                            <span class="invalid-feedback">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label for="descricao">
+                                            <i class="fas fa-tasks"></i>
+                                            Descrição Detalhada
+                                        </label>
+                                        <textarea class="form-control @error('descricao') is-invalid @enderror" 
+                                                  id="descricao" 
+                                                  name="descricao" 
+                                                  rows="3"
+                                                  placeholder="Digite uma descrição detalhada da ação (opcional)">{{ old('descricao', $acao->descricao) }}</textarea>
+                                        @error('descricao')
                                             <span class="invalid-feedback">{{ $message }}</span>
                                         @enderror
                                     </div>

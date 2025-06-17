@@ -14,34 +14,29 @@ class GrupoExigencia extends Model
     protected $fillable = [
         'nome',
         'descricao',
-        'is_ativo',
+        'is_ativo'
     ];
 
     protected $casts = [
-        'is_ativo' => 'boolean',
+        'is_ativo' => 'boolean'
     ];
 
-    /**
-     * Scope para grupos ativos
-     */
+    // ===== RELACIONAMENTOS =====
+
+    public function etapasFluxo()
+    {
+        return $this->hasMany(EtapaFluxo::class);
+    }
+
+    public function templatesDocumento()
+    {
+        return $this->hasMany(TemplateDocumento::class);
+    }
+
+    // ===== SCOPES =====
+
     public function scopeAtivos($query)
     {
         return $query->where('is_ativo', true);
-    }
-
-    /**
-     * Relacionamento com etapas de fluxo
-     */
-    public function etapasFluxo()
-    {
-        return $this->hasMany(EtapaFluxo::class, 'grupo_exigencia_id');
-    }
-
-    /**
-     * Relacionamento com templates de documento
-     */
-    public function templatesDocumento()
-    {
-        return $this->hasMany(TemplateDocumento::class, 'grupo_exigencia_id');
     }
 }

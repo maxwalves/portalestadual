@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TransicaoEtapa extends Model
 {
@@ -35,25 +36,25 @@ class TransicaoEtapa extends Model
     // Relacionamentos
 
     /**
-     * Etapa de origem da transição
+     * Relacionamento com etapa de origem
      */
-    public function etapaFluxoOrigem()
+    public function etapaOrigem(): BelongsTo
     {
         return $this->belongsTo(EtapaFluxo::class, 'etapa_fluxo_origem_id');
     }
 
     /**
-     * Etapa de destino da transição
+     * Relacionamento com etapa de destino
      */
-    public function etapaFluxoDestino()
+    public function etapaDestino(): BelongsTo
     {
         return $this->belongsTo(EtapaFluxo::class, 'etapa_fluxo_destino_id');
     }
 
     /**
-     * Status que condiciona a transição
+     * Relacionamento com status que dispara a transição
      */
-    public function statusCondicao()
+    public function statusCondicao(): BelongsTo
     {
         return $this->belongsTo(Status::class, 'status_condicao_id');
     }
@@ -69,7 +70,15 @@ class TransicaoEtapa extends Model
     }
 
     /**
-     * Scope por etapa de origem
+     * Scope para ordenar por prioridade
+     */
+    public function scopeOrdenadaPorPrioridade($query)
+    {
+        return $query->orderBy('prioridade', 'desc');
+    }
+
+    /**
+     * Scope para filtrar por etapa de origem
      */
     public function scopePorEtapaOrigem($query, $etapaId)
     {
@@ -77,11 +86,11 @@ class TransicaoEtapa extends Model
     }
 
     /**
-     * Scope ordenado por prioridade
+     * Scope para filtrar por status
      */
-    public function scopeOrdenado($query)
+    public function scopePorStatus($query, $statusId)
     {
-        return $query->orderBy('prioridade', 'desc');
+        return $query->where('status_condicao_id', $statusId);
     }
 
     // Métodos auxiliares
@@ -126,5 +135,54 @@ class TransicaoEtapa extends Model
             default:
                 return "Condição: {$this->condicao_tipo}";
         }
+    }
+
+    /**
+     * Verificar se a transição deve ser executada baseada no status
+     */
+    public function deveExecutar($statusAtual = null): bool
+    {
+        if (!$this->is_ativo) {
+            return false;
+        }
+
+        // Se não tem condição de status, sempre executa
+        if (!$this->status_condicao_id) {
+            return true;
+        }
+
+        // Verificar se o status atual corresponde à condição
+        return $this->status_condicao_id == $statusAtual;
+    }
+
+    /**
+     * Buscar próxima etapa baseada no status atual
+     */
+    public static function buscarProximaEtapa($etapaAtualId, $statusAtual = null)
+    {
+        $transicoes = static::where('etapa_fluxo_origem_id', $etapaAtualId)
+            ->ativas()
+            ->ordenadaPorPrioridade()
+            ->with('etapaDestino')
+            ->get();
+
+        foreach ($transicoes as $transicao) {
+            if ($transicao->deveExecutar($statusAtual)) {
+                return $transicao->etapaDestino;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Verificar se existe transição para um status específico
+     */
+    public static function existeTransicaoPara($etapaOrigemId, $statusId)
+    {
+        return static::where('etapa_fluxo_origem_id', $etapaOrigemId)
+            ->where('status_condicao_id', $statusId)
+            ->ativas()
+            ->exists();
     }
 }

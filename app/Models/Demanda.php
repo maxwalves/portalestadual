@@ -12,24 +12,11 @@ class Demanda extends Model
         'termo_adesao_id',
         'cadastro_demanda_gms_id',
         'prioridade_sam',
-        'nome',
-        'descricao',
-        'justificativa',
-        'valor_estimado',
-        'localizacao',
-        'coordenadas_lat',
-        'coordenadas_lng',
-        'beneficiarios_estimados',
-        'status',
-        'created_by',
-        'updated_by'
+        'descricao'
     ];
 
     protected $casts = [
-        'valor_estimado' => 'decimal:2',
-        'coordenadas_lat' => 'decimal:8',
-        'coordenadas_lng' => 'decimal:8',
-        'beneficiarios_estimados' => 'integer',
+        // Removendo casts para colunas inexistentes
     ];
 
     /**

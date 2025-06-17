@@ -85,6 +85,30 @@ Route::middleware(['auth'])->group(function () {
         Route::get('api/cidades-parana', [\App\Http\Controllers\AcaoController::class, 'getCidadesParana'])->name('api.cidades-parana');
     });
     
+    // ===== ROTAS DO SISTEMA DE WORKFLOW =====
+    
+    Route::middleware([\App\Http\Middleware\CheckOrgAccess::class])->group(function () {
+        // Workflow da Ação
+        Route::get('workflow/acao/{acao}', [\App\Http\Controllers\ExecucaoEtapaController::class, 'workflow'])->name('workflow.acao');
+        
+        // Visualização detalhada de etapa
+        Route::get('workflow/acao/{acao}/etapa/{etapaFluxo}', [\App\Http\Controllers\ExecucaoEtapaController::class, 'etapaDetalhada'])->name('workflow.etapa-detalhada');
+        
+        // Gerenciamento de Etapas
+        Route::post('workflow/acao/{acao}/etapa/{etapaFluxo}/iniciar', [\App\Http\Controllers\ExecucaoEtapaController::class, 'iniciarEtapa'])->name('workflow.iniciar-etapa');
+        Route::post('workflow/execucao/{execucao}/concluir', [\App\Http\Controllers\ExecucaoEtapaController::class, 'concluirEtapa'])->name('workflow.concluir-etapa');
+        Route::post('workflow/execucao/{execucao}/alterar-status', [\App\Http\Controllers\ExecucaoEtapaController::class, 'alterarStatusEtapa'])->name('workflow.alterar-status-etapa');
+        Route::get('workflow/execucao/{execucao}/opcoes-status', [\App\Http\Controllers\ExecucaoEtapaController::class, 'getOpcoesStatus'])->name('workflow.opcoes-status');
+        
+        // Gerenciamento de Documentos
+        Route::post('workflow/execucao/{execucao}/documento', [\App\Http\Controllers\ExecucaoEtapaController::class, 'uploadDocumento'])->name('workflow.upload-documento');
+        Route::post('workflow/documento/{documento}/aprovar', [\App\Http\Controllers\ExecucaoEtapaController::class, 'aprovarDocumento'])->name('workflow.aprovar-documento');
+        Route::post('workflow/documento/{documento}/reprovar', [\App\Http\Controllers\ExecucaoEtapaController::class, 'reprovarDocumento'])->name('workflow.reprovar-documento');
+        
+        // Histórico e Relatórios
+        Route::get('workflow/execucao/{execucao}/historico', [\App\Http\Controllers\ExecucaoEtapaController::class, 'historicoEtapa'])->name('workflow.historico-etapa');
+    });
+    
     // ===== ROTAS DE GESTÃO DE WORKFLOW - APENAS ADMINS PARANACIDADE E SISTEMA =====
     
     Route::middleware(['role:admin|admin_paranacidade'])->group(function () {
@@ -97,6 +121,13 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('etapas-fluxo', \App\Http\Controllers\EtapaFluxoController::class)->parameters([
             'etapas-fluxo' => 'etapa_fluxo'
         ]);
+        
+        // APIs para configuração de status e transições
+        Route::post('api/etapa-status-opcoes/salvar', [\App\Http\Controllers\EtapaStatusOpcaoController::class, 'salvar'])->name('api.etapa-status-opcoes.salvar');
+        Route::get('api/transicoes-etapa/{transicao}', [\App\Http\Controllers\TransicaoEtapaController::class, 'show'])->name('api.transicoes-etapa.show');
+        Route::post('api/transicoes-etapa', [\App\Http\Controllers\TransicaoEtapaController::class, 'store'])->name('api.transicoes-etapa.store');
+        Route::put('api/transicoes-etapa/{transicao}', [\App\Http\Controllers\TransicaoEtapaController::class, 'update'])->name('api.transicoes-etapa.update');
+        Route::delete('api/transicoes-etapa/{transicao}', [\App\Http\Controllers\TransicaoEtapaController::class, 'destroy'])->name('api.transicoes-etapa.destroy');
     });
 
     // ===== ROTAS DE GESTÃO DOCUMENTAL - APENAS ADMINS PARANACIDADE E SISTEMA =====

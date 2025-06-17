@@ -21,8 +21,204 @@
     </div>
 @stop
 
+@section('css')
+    <style>
+        .icon-circle {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        
+        .acao-workflow-link:hover {
+            text-decoration: none !important;
+        }
+        
+        .acao-workflow-link:hover strong {
+            color: #007bff !important;
+            text-decoration: underline;
+        }
+        
+        .badge-sm {
+            font-size: 0.75em;
+            padding: 0.25em 0.4em;
+        }
+        
+        .table td {
+            vertical-align: middle;
+        }
+        
+        .collapsed-card .card-body {
+            display: none;
+        }
+        
+        .card-tools .btn-tool {
+            background: none;
+            border: none;
+            color: #fff;
+        }
+        
+        .card-tools .btn-tool:hover {
+            color: #ddd;
+        }
+    </style>
+@stop
+
+@section('js')
+    <script>
+        function confirmDelete(id) {
+            Swal.fire({
+                title: 'Confirmar Exclusão',
+                text: 'Tem certeza que deseja excluir esta ação? Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir!',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('delete-form-' + id).submit();
+                }
+            });
+        }
+        
+        $(document).ready(function() {
+            // Auto-expandir filtros se houver parâmetros de busca
+            if (window.location.search.includes('busca=') || 
+                window.location.search.includes('organizacao_solicitante=') ||
+                window.location.search.includes('tipo_fluxo=') ||
+                window.location.search.includes('status=')) {
+                $('.collapsed-card').removeClass('collapsed-card');
+                $('.card-body').show();
+                $('.btn-tool i').removeClass('fas fa-plus').addClass('fas fa-minus');
+            }
+            
+            // Tooltips
+            $('[data-toggle="tooltip"]').tooltip();
+        });
+    </script>
+@stop
+
 @section('content')
     <div class="container-fluid">
+        <!-- Filtros -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card card-secondary collapsed-card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-filter"></i>
+                            Filtros de Pesquisa
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body" style="display: none;">
+                        <form method="GET" action="{{ route('acoes.index') }}">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="busca">
+                                            <i class="fas fa-search"></i>
+                                            Busca Geral
+                                        </label>
+                                        <input type="text" 
+                                               class="form-control" 
+                                               id="busca" 
+                                               name="busca" 
+                                               value="{{ request('busca') }}"
+                                               placeholder="Nome, descrição ou projeto SAM...">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="organizacao_solicitante">
+                                            <i class="fas fa-building"></i>
+                                            Organização Solicitante
+                                        </label>
+                                        <select class="form-control" id="organizacao_solicitante" name="organizacao_solicitante">
+                                            <option value="">Todas as organizações</option>
+                                            @foreach($organizacoes as $org)
+                                                <option value="{{ $org->id }}" 
+                                                        {{ request('organizacao_solicitante') == $org->id ? 'selected' : '' }}>
+                                                    {{ $org->nome }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-group">
+                                        <label for="tipo_fluxo">
+                                            <i class="fas fa-route"></i>
+                                            Tipo de Fluxo
+                                        </label>
+                                        <select class="form-control" id="tipo_fluxo" name="tipo_fluxo">
+                                            <option value="">Todos os tipos</option>
+                                            @foreach($tiposFluxo as $tipo)
+                                                <option value="{{ $tipo->id }}" 
+                                                        {{ request('tipo_fluxo') == $tipo->id ? 'selected' : '' }}>
+                                                    {{ $tipo->nome }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-group">
+                                        <label for="status">
+                                            <i class="fas fa-flag"></i>
+                                            Status
+                                        </label>
+                                        <select class="form-control" id="status" name="status">
+                                            <option value="">Todos os status</option>
+                                            <option value="PLANEJAMENTO" {{ request('status') == 'PLANEJAMENTO' ? 'selected' : '' }}>
+                                                Planejamento
+                                            </option>
+                                            <option value="EM_EXECUCAO" {{ request('status') == 'EM_EXECUCAO' ? 'selected' : '' }}>
+                                                Em Execução
+                                            </option>
+                                            <option value="PARALISADA" {{ request('status') == 'PARALISADA' ? 'selected' : '' }}>
+                                                Paralisada
+                                            </option>
+                                            <option value="CONCLUIDA" {{ request('status') == 'CONCLUIDA' ? 'selected' : '' }}>
+                                                Concluída
+                                            </option>
+                                            <option value="CANCELADA" {{ request('status') == 'CANCELADA' ? 'selected' : '' }}>
+                                                Cancelada
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-group">
+                                        <label>&nbsp;</label>
+                                        <div class="btn-group btn-block">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-search"></i>
+                                                Filtrar
+                                            </button>
+                                            <a href="{{ route('acoes.index') }}" class="btn btn-secondary">
+                                                <i class="fas fa-times"></i>
+                                                Limpar
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row">
             <div class="col-12">
                 <div class="card card-primary card-outline">
@@ -30,6 +226,9 @@
                         <h3 class="card-title">
                             <i class="fas fa-list"></i>
                             Lista de Ações
+                            @if($acoes->total() > 0)
+                                <span class="badge badge-info">{{ $acoes->total() }} {{ $acoes->total() == 1 ? 'ação' : 'ações' }}</span>
+                            @endif
                         </h3>
                         <div class="card-tools">
                             <a href="{{ route('acoes.create') }}" class="btn btn-primary btn-sm">
@@ -64,7 +263,11 @@
                                         </th>
                                         <th>
                                             <i class="fas fa-tasks"></i>
-                                            Descrição
+                                            Nome/Descrição
+                                        </th>
+                                        <th>
+                                            <i class="fas fa-building"></i>
+                                            Organizações
                                         </th>
                                         <th>
                                             <i class="fas fa-clipboard-list"></i>
@@ -80,13 +283,9 @@
                                         </th>
                                         <th class="text-right">
                                             <i class="fas fa-dollar-sign"></i>
-                                            Valor Estimado
+                                            Valores
                                         </th>
-                                        <th class="text-right">
-                                            <i class="fas fa-hand-holding-usd"></i>
-                                            Valor Contratado
-                                        </th>
-                                        <th class="text-center" style="width: 200px;">
+                                        <th class="text-center" style="width: 160px;">
                                             <i class="fas fa-cogs"></i>
                                             Ações
                                         </th>
@@ -104,21 +303,69 @@
                                                         <i class="fas fa-tasks"></i>
                                                     </div>
                                                     <div>
-                                                        <strong>{{ $acao->descricao }}</strong>
+                                                        <a href="{{ route('workflow.acao', $acao) }}" 
+                                                           class="text-decoration-none acao-workflow-link" 
+                                                           title="Clique para ver o workflow desta ação">
+                                                            <strong class="text-primary">{{ $acao->nome ?? $acao->descricao }}</strong>
+                                                            <i class="fas fa-external-link-alt ml-1 text-muted" style="font-size: 0.8em;"></i>
+                                                        </a>
+                                                        @if($acao->descricao && $acao->nome !== $acao->descricao)
+                                                            <br>
+                                                            <small class="text-muted">{{ Str::limit($acao->descricao, 50) }}</small>
+                                                        @endif
                                                         @if($acao->localizacao)
                                                             <br>
                                                             <small class="text-muted">
                                                                 <i class="fas fa-map-marker-alt"></i>
-                                                                {{ $acao->localizacao }}
+                                                                {{ Str::limit($acao->localizacao, 40) }}
                                                             </small>
                                                         @endif
                                                     </div>
                                                 </div>
                                             </td>
                                             <td>
+                                                @if($acao->demanda && $acao->demanda->termoAdesao && $acao->demanda->termoAdesao->organizacao)
+                                                    <div class="mb-1">
+                                                        <span class="badge badge-info badge-sm">
+                                                            <i class="fas fa-paper-plane mr-1"></i>
+                                                            Solicitante
+                                                        </span>
+                                                        <br>
+                                                        <small class="font-weight-bold">{{ $acao->demanda->termoAdesao->organizacao->nome }}</small>
+                                                    </div>
+                                                @endif
+                                                
+                                                @if($acao->tipoFluxo && $acao->tipoFluxo->etapasFluxo->count() > 0)
+                                                    @php
+                                                        $organizacoesExecutoras = $acao->tipoFluxo->etapasFluxo
+                                                            ->pluck('organizacaoExecutora')
+                                                            ->filter()
+                                                            ->unique('id');
+                                                    @endphp
+                                                    
+                                                    @if($organizacoesExecutoras->count() > 0)
+                                                        <div class="mt-1">
+                                                            <span class="badge badge-success badge-sm">
+                                                                <i class="fas fa-cogs mr-1"></i>
+                                                                Executora{{ $organizacoesExecutoras->count() > 1 ? 's' : '' }}
+                                                            </span>
+                                                            <br>
+                                                            @foreach($organizacoesExecutoras->take(2) as $org)
+                                                                <small class="font-weight-bold d-block">{{ $org->nome }}</small>
+                                                            @endforeach
+                                                            @if($organizacoesExecutoras->count() > 2)
+                                                                <small class="text-muted">
+                                                                    +{{ $organizacoesExecutoras->count() - 2 }} outras
+                                                                </small>
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                @endif
+                                            </td>
+                                            <td>
                                                 @if($acao->demanda)
                                                     <span class="badge badge-info">
-                                                        {{ $acao->demanda->descricao }}
+                                                        {{ Str::limit($acao->demanda->descricao, 30) }}
                                                     </span>
                                                 @else
                                                     <span class="text-muted">-</span>
@@ -144,19 +391,24 @@
                                             </td>
                                             <td class="text-right">
                                                 @if($acao->valor_estimado)
-                                                    <span class="text-success font-weight-bold">
-                                                        R$ {{ number_format($acao->valor_estimado, 2, ',', '.') }}
-                                                    </span>
-                                                @else
-                                                    <span class="text-muted">-</span>
+                                                    <div>
+                                                        <small class="text-muted">Estimado:</small>
+                                                        <br>
+                                                        <span class="text-success font-weight-bold">
+                                                            R$ {{ number_format($acao->valor_estimado, 2, ',', '.') }}
+                                                        </span>
+                                                    </div>
                                                 @endif
-                                            </td>
-                                            <td class="text-right">
                                                 @if($acao->valor_contratado)
-                                                    <span class="text-primary font-weight-bold">
-                                                        R$ {{ number_format($acao->valor_contratado, 2, ',', '.') }}
-                                                    </span>
-                                                @else
+                                                    <div class="mt-1">
+                                                        <small class="text-muted">Contratado:</small>
+                                                        <br>
+                                                        <span class="text-primary font-weight-bold">
+                                                            R$ {{ number_format($acao->valor_contratado, 2, ',', '.') }}
+                                                        </span>
+                                                    </div>
+                                                @endif
+                                                @if(!$acao->valor_estimado && !$acao->valor_contratado)
                                                     <span class="text-muted">-</span>
                                                 @endif
                                             </td>
@@ -164,7 +416,7 @@
                                                 <div class="btn-group" role="group">
                                                     <a href="{{ route('acoes.show', $acao) }}" 
                                                        class="btn btn-info btn-sm" 
-                                                       title="Visualizar">
+                                                       title="Visualizar Workflow">
                                                         <i class="fas fa-eye"></i>
                                                     </a>
                                                     <a href="{{ route('acoes.edit', $acao) }}" 
@@ -193,10 +445,19 @@
                                                 <div class="text-muted">
                                                     <i class="fas fa-tasks fa-3x mb-3"></i>
                                                     <p class="h5">Nenhuma ação encontrada</p>
-                                                    <a href="{{ route('acoes.create') }}" class="btn btn-primary">
-                                                        <i class="fas fa-plus"></i>
-                                                        Criar primeira ação
-                                                    </a>
+                                                    @if(request()->hasAny(['busca', 'organizacao_solicitante', 'tipo_fluxo', 'status']))
+                                                        <p>Tente ajustar os filtros de pesquisa.</p>
+                                                        <a href="{{ route('acoes.index') }}" class="btn btn-secondary">
+                                                            <i class="fas fa-times"></i>
+                                                            Limpar Filtros
+                                                        </a>
+                                                    @else
+                                                        <p>Comece criando sua primeira ação.</p>
+                                                        <a href="{{ route('acoes.create') }}" class="btn btn-primary">
+                                                            <i class="fas fa-plus"></i>
+                                                            Nova Ação
+                                                        </a>
+                                                    @endif
                                                 </div>
                                             </td>
                                         </tr>
@@ -205,18 +466,18 @@
                             </table>
                         </div>
                     </div>
+                    
                     @if($acoes->hasPages())
                         <div class="card-footer">
-                            <div class="row align-items-center">
-                                <div class="col-md-6">
-                                    <p class="text-muted mb-0">
-                                        Mostrando {{ $acoes->firstItem() }} a {{ $acoes->lastItem() }} 
-                                        de {{ $acoes->total() }} resultados
-                                    </p>
+                            <div class="row">
+                                <div class="col-sm-12 col-md-5">
+                                    <div class="dataTables_info">
+                                        Mostrando {{ $acoes->firstItem() }} até {{ $acoes->lastItem() }} de {{ $acoes->total() }} resultados
+                                    </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-sm-12 col-md-7">
                                     <div class="float-right">
-                                        {{ $acoes->links() }}
+                                        {{ $acoes->appends(request()->query())->links() }}
                                     </div>
                                 </div>
                             </div>
@@ -228,82 +489,84 @@
     </div>
 @stop
 
-@section('js')
-<script>
-function confirmDelete(id) {
-    console.log('confirmDelete called with id:', id);
-    
-    // Verificar se SweetAlert está disponível
-    if (typeof Swal === 'undefined') {
-        console.warn('SweetAlert não está carregado, usando confirm nativo');
-        if (confirm('Tem certeza que deseja excluir? Esta ação não pode ser desfeita!')) {
-            submitDeleteForm(id);
+@section('css')
+    <style>
+        .icon-circle {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
         }
-        return;
-    }
-    
-    // Usar SweetAlert
-    Swal.fire({
-        title: 'Tem certeza?',
-        text: "Esta ação não pode ser desfeita!",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Sim, excluir!',
-        cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            submitDeleteForm(id);
+        
+        .acao-workflow-link:hover {
+            text-decoration: none !important;
         }
-    });
-}
-
-function submitDeleteForm(id) {
-    console.log('submitDeleteForm called with id:', id);
-    
-    const formId = 'delete-form-' + id;
-    const form = document.getElementById(formId);
-    
-    if (form) {
-        console.log('Submitting form:', form.action);
-        form.submit();
-    } else {
-        console.error('Form not found:', formId);
-        alert('Erro: Formulário não encontrado!');
-    }
-}
-</script>
+        
+        .acao-workflow-link:hover strong {
+            color: #007bff !important;
+            text-decoration: underline;
+        }
+        
+        .badge-sm {
+            font-size: 0.75em;
+            padding: 0.25em 0.4em;
+        }
+        
+        .table td {
+            vertical-align: middle;
+        }
+        
+        .collapsed-card .card-body {
+            display: none;
+        }
+        
+        .card-tools .btn-tool {
+            background: none;
+            border: none;
+            color: #fff;
+        }
+        
+        .card-tools .btn-tool:hover {
+            color: #ddd;
+        }
+    </style>
 @stop
 
-@section('css')
-<style>
-.table th {
-    border-top: none;
-    font-weight: 600;
-    background-color: #f8f9fa;
-}
-.btn-group .btn {
-    margin-right: 2px;
-}
-.btn-group .btn:last-child {
-    margin-right: 0;
-}
-.card-outline.card-primary {
-    border-top: 3px solid #007bff;
-}
-.icon-circle {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-}
-.badge-lg {
-    font-size: 0.85em;
-    padding: 0.5em 0.75em;
-}
-</style>
+@section('js')
+    <script>
+        function confirmDelete(id) {
+            Swal.fire({
+                title: 'Confirmar Exclusão',
+                text: 'Tem certeza que deseja excluir esta ação? Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir!',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('delete-form-' + id).submit();
+                }
+            });
+        }
+        
+        $(document).ready(function() {
+            // Auto-expandir filtros se houver parâmetros de busca
+            if (window.location.search.includes('busca=') || 
+                window.location.search.includes('organizacao_solicitante=') ||
+                window.location.search.includes('tipo_fluxo=') ||
+                window.location.search.includes('status=')) {
+                $('.collapsed-card').removeClass('collapsed-card');
+                $('.card-body').show();
+                $('.btn-tool i').removeClass('fas fa-plus').addClass('fas fa-minus');
+            }
+            
+            // Tooltips
+            $('[data-toggle="tooltip"]').tooltip();
+        });
+    </script>
 @stop 

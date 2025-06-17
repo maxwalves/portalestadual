@@ -138,4 +138,152 @@ class ExecucaoEtapa extends Model
 
         return now()->diffInDays($this->data_prazo);
     }
+
+    /**
+     * Obtém templates obrigatórios da etapa
+     */
+    public function getDocumentosObrigatoriosAttribute()
+    {
+        if (!$this->etapaFluxo || !$this->etapaFluxo->grupoExigencia) {
+            return collect();
+        }
+
+        return $this->etapaFluxo->grupoExigencia->templatesDocumento()
+            ->with('tipoDocumento')
+            ->where('is_obrigatorio', true)
+            ->orderBy('ordem')
+            ->get();
+    }
+
+    /**
+     * Obtém documentos enviados agrupados por tipo
+     */
+    public function getDocumentosEnviadosAttribute()
+    {
+        return $this->documentos()->with('tipoDocumento', 'usuarioUpload')->get();
+    }
+
+    /**
+     * Verifica se pode enviar documento
+     */
+    public function podeEnviarDocumento(): bool
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        // Deve ser da organização executora e etapa deve estar ativa
+        return $user->organizacao_id === $this->etapaFluxo->organizacao_executora_id &&
+               in_array($this->status->codigo, ['PENDENTE', 'EM_ANALISE', 'DEVOLVIDO']);
+    }
+
+    /**
+     * Verifica se pode concluir a etapa
+     */
+    public function podeConcluir(): bool
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        // Deve ser da organização solicitante
+        if ($user->organizacao_id !== $this->etapaFluxo->organizacao_solicitante_id) {
+            return false;
+        }
+
+        // Verificar se todos os documentos obrigatórios estão aprovados
+        $grupoExigencia = $this->etapaFluxo->grupoExigencia;
+        if (!$grupoExigencia) {
+            return true; // Etapa sem documentos obrigatórios
+        }
+
+        $templatesObrigatorios = $grupoExigencia->templatesDocumento()
+            ->where('is_obrigatorio', true)
+            ->get();
+
+        foreach ($templatesObrigatorios as $template) {
+            $documentoAprovado = $this->documentos()
+                ->where('tipo_documento_id', $template->tipo_documento_id)
+                ->where('status_documento', \App\Models\Documento::STATUS_APROVADO)
+                ->exists();
+
+            if (!$documentoAprovado) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Verifica se todos documentos obrigatórios estão aprovados
+     */
+    public function getTodosDocumentosAprovadosAttribute(): bool
+    {
+        $grupoExigencia = $this->etapaFluxo->grupoExigencia;
+        if (!$grupoExigencia) {
+            return true; // Etapa sem documentos obrigatórios
+        }
+
+        $templatesObrigatorios = $grupoExigencia->templatesDocumento()
+            ->where('is_obrigatorio', true)
+            ->get();
+
+        if ($templatesObrigatorios->isEmpty()) {
+            return true;
+        }
+
+        foreach ($templatesObrigatorios as $template) {
+            $documentoAprovado = $this->documentos()
+                ->where('tipo_documento_id', $template->tipo_documento_id)
+                ->where('status_documento', \App\Models\Documento::STATUS_APROVADO)
+                ->exists();
+
+            if (!$documentoAprovado) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Verifica se está atrasada
+     */
+    public function getEstaAtrasadaAttribute(): bool
+    {
+        return $this->isEmAtraso();
+    }
+
+    /**
+     * Verifica se está próxima do vencimento (3 dias)
+     */
+    public function getEstaProximaDoVencimentoAttribute(): bool
+    {
+        if (is_null($this->data_prazo) || !is_null($this->data_conclusao)) {
+            return false;
+        }
+
+        $diasRestantes = now()->diffInDays($this->data_prazo, false);
+        return $diasRestantes <= 3 && $diasRestantes > 0;
+    }
+
+    /**
+     * Obtém cor do status
+     */
+    public function getStatusCorAttribute(): string
+    {
+        $cores = [
+            'PENDENTE' => 'secondary',
+            'EM_ANALISE' => 'warning',
+            'APROVADO' => 'success',
+            'REPROVADO' => 'danger',
+            'DEVOLVIDO' => 'warning',
+            'CANCELADO' => 'dark'
+        ];
+
+        return $cores[$this->status->codigo] ?? 'secondary';
+    }
 } 

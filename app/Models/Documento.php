@@ -33,6 +33,8 @@ class Documento extends Model
         'data_validade',
         'observacoes',
         'motivo_reprovacao',
+        'data_aprovacao',
+        'usuario_aprovacao_id',
         'metadata',
         'created_by',
         'updated_by',
@@ -42,6 +44,7 @@ class Documento extends Model
         'is_assinado' => 'boolean',
         'data_upload' => 'datetime',
         'data_validade' => 'date',
+        'data_aprovacao' => 'datetime',
         'metadata' => 'array',
         'tamanho_bytes' => 'integer',
         'versao' => 'integer',
@@ -86,6 +89,14 @@ class Documento extends Model
     public function usuarioUpload(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'usuario_upload_id');
+    }
+
+    /**
+     * Relacionamento com usuário que aprovou/reprovou
+     */
+    public function usuarioAprovacao(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'usuario_aprovacao_id');
     }
 
     /**

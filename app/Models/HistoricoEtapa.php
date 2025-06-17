@@ -26,12 +26,12 @@ class HistoricoEtapa extends Model
         'dados_alterados',
         'ip_usuario',
         'user_agent',
-        'data_acao',
+        'data_acao'
     ];
 
     protected $casts = [
         'dados_alterados' => 'array',
-        'data_acao' => 'datetime',
+        'data_acao' => 'datetime'
     ];
 
     protected $dates = [
@@ -45,7 +45,7 @@ class HistoricoEtapa extends Model
      */
     public function execucaoEtapa()
     {
-        return $this->belongsTo(ExecucaoEtapa::class, 'execucao_etapa_id');
+        return $this->belongsTo(ExecucaoEtapa::class);
     }
 
     /**
@@ -53,7 +53,7 @@ class HistoricoEtapa extends Model
      */
     public function usuario()
     {
-        return $this->belongsTo(User::class, 'usuario_id');
+        return $this->belongsTo(User::class);
     }
 
     /**
@@ -114,33 +114,29 @@ class HistoricoEtapa extends Model
         return $query->orderBy('data_acao', 'desc');
     }
 
+    public function scopeRecentes($query, $dias = 30)
+    {
+        return $query->where('data_acao', '>=', now()->subDays($dias));
+    }
+
     // Métodos estáticos para criação automática
 
     /**
      * Registra uma mudança de status
      */
-    public static function registrarMudancaStatus(
-        ExecucaoEtapa $execucaoEtapa,
-        ?Status $statusAnterior,
-        Status $statusNovo,
-        User $usuario,
-        ?string $observacao = null
-    ): self {
+    public static function registrarMudancaStatus($execucaoEtapaId, $statusAnteriorId, $statusNovoId, $observacao = null)
+    {
         return self::create([
-            'execucao_etapa_id' => $execucaoEtapa->id,
-            'usuario_id' => $usuario->id,
-            'status_anterior_id' => $statusAnterior?->id,
-            'status_novo_id' => $statusNovo->id,
-            'acao' => 'MUDANCA_STATUS',
-            'descricao_acao' => "Status alterado de '{$statusAnterior?->nome}' para '{$statusNovo->nome}'",
+            'execucao_etapa_id' => $execucaoEtapaId,
+            'usuario_id' => auth()->id(),
+            'status_anterior_id' => $statusAnteriorId,
+            'status_novo_id' => $statusNovoId,
+            'acao' => 'STATUS_ALTERADO',
+            'descricao_acao' => 'Status alterado',
             'observacao' => $observacao,
-            'dados_alterados' => [
-                'status_anterior' => $statusAnterior?->toArray(),
-                'status_novo' => $statusNovo->toArray(),
-            ],
-            'ip_usuario' => Request::ip(),
-            'user_agent' => Request::userAgent(),
-            'data_acao' => now(),
+            'ip_usuario' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'data_acao' => now()
         ]);
     }
 
@@ -191,33 +187,37 @@ class HistoricoEtapa extends Model
     /**
      * Retorna ícone da ação
      */
-    public function getIconeAcao(): string
+    public function getIconeAcaoAttribute()
     {
-        return match($this->acao) {
-            'MUDANCA_STATUS' => 'fa-exchange-alt',
-            'ENVIO_DOCUMENTO' => 'fa-file-upload',
-            'INICIO_ETAPA' => 'fa-play',
-            'CONCLUSAO_ETAPA' => 'fa-check',
-            'APROVACAO' => 'fa-thumbs-up',
-            'REPROVACAO' => 'fa-thumbs-down',
-            default => 'fa-history',
-        };
+        $icones = [
+            'ETAPA_INICIADA' => 'fas fa-play text-primary',
+            'ETAPA_CONCLUIDA' => 'fas fa-check-circle text-success',
+            'DOCUMENTO_ENVIADO' => 'fas fa-upload text-info',
+            'DOCUMENTO_APROVADO' => 'fas fa-check text-success',
+            'DOCUMENTO_REPROVADO' => 'fas fa-times text-danger',
+            'STATUS_ALTERADO' => 'fas fa-exchange-alt text-warning',
+            'OBSERVACAO_ADICIONADA' => 'fas fa-comment text-info'
+        ];
+
+        return $icones[$this->acao] ?? 'fas fa-circle text-secondary';
     }
 
     /**
      * Retorna cor da ação
      */
-    public function getCorAcao(): string
+    public function getCorAcaoAttribute()
     {
-        return match($this->acao) {
-            'MUDANCA_STATUS' => 'primary',
-            'ENVIO_DOCUMENTO' => 'info',
-            'INICIO_ETAPA' => 'success',
-            'CONCLUSAO_ETAPA' => 'success',
-            'APROVACAO' => 'success',
-            'REPROVACAO' => 'danger',
-            default => 'secondary',
-        };
+        $cores = [
+            'ETAPA_INICIADA' => 'primary',
+            'ETAPA_CONCLUIDA' => 'success',
+            'DOCUMENTO_ENVIADO' => 'info',
+            'DOCUMENTO_APROVADO' => 'success',
+            'DOCUMENTO_REPROVADO' => 'danger',
+            'STATUS_ALTERADO' => 'warning',
+            'OBSERVACAO_ADICIONADA' => 'info'
+        ];
+
+        return $cores[$this->acao] ?? 'secondary';
     }
 
     /**
