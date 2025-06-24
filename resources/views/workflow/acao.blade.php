@@ -58,225 +58,191 @@
         </div>
         <div class="card-body">
             <div class="timeline">
-                @foreach($etapasFluxo as $etapaFluxo)
+                @foreach($etapasFluxo as $index => $etapaFluxo)
                     @php
-                        $execucao = $execucoes->where('etapa_fluxo_id', $etapaFluxo->id)->first();
+                        $execucao = $execucoes->get($etapaFluxo->id);
                         $isAtual = $etapaAtual && $etapaAtual->id === $etapaFluxo->id;
                         $isEmAndamento = $execucao && in_array($execucao->status->codigo, ['PENDENTE', 'EM_ANALISE', 'DEVOLVIDO']);
+                        $isConcluida = $execucao && $execucao->status->codigo === 'APROVADO';
                         
-                        // Definir cor de fundo e borda baseado no status
-                        $corFundo = '#ffffff';
-                        $corBorda = '#6c757d';
-                        $corIcone = 'secondary';
-                        $iconeEtapa = 'fas fa-circle';
+                        // Ícone baseado no status
+                        $icone = 'fas fa-circle';
+                        $corIcone = 'bg-secondary';
                         
-                        if ($execucao) {
-                            switch($execucao->status->codigo) {
-                                case 'APROVADO':
-                                    $corFundo = '#f8fff8';
-                                    $corBorda = '#28a745';
-                                    $corIcone = 'success';
-                                    $iconeEtapa = 'fas fa-check-circle';
-                                    break;
-                                case 'REPROVADO':
-                                    $corFundo = '#fff8f8';
-                                    $corBorda = '#dc3545';
-                                    $corIcone = 'danger';
-                                    $iconeEtapa = 'fas fa-times-circle';
-                                    break;
-                                case 'DEVOLVIDO':
-                                    $corFundo = '#fff8e1';
-                                    $corBorda = '#fd7e14';
-                                    $corIcone = 'warning';
-                                    $iconeEtapa = 'fas fa-undo-alt';
-                                    break;
-                                case 'EM_ANALISE':
-                                    $corFundo = '#fff9e6';
-                                    $corBorda = '#ffc107';
-                                    $corIcone = 'warning';
-                                    $iconeEtapa = 'fas fa-hourglass-half';
-                                    break;
-                                case 'PENDENTE':
-                                    $corFundo = '#f8f9fa';
-                                    $corBorda = '#007bff';
-                                    $corIcone = 'info';
-                                    $iconeEtapa = 'fas fa-clock';
-                                    break;
-                            }
+                        if ($isConcluida) {
+                            $icone = 'fas fa-check-circle';
+                            $corIcone = 'bg-success';
+                        } elseif ($isEmAndamento) {
+                            $icone = 'fas fa-clock';
+                            $corIcone = 'bg-primary';
+                        } elseif ($isAtual) {
+                            $icone = 'fas fa-play-circle';
+                            $corIcone = 'bg-info';
                         }
                         
-                        // Destacar etapa atual em trabalho
-                        if ($isAtual && $isEmAndamento) {
-                            $corFundo = '#e3f2fd';
-                            $corBorda = '#2196f3';
-                            $corIcone = 'primary';
-                            $iconeEtapa = 'fas fa-play-circle';
-                        }
-                        
-                        $estiloEtapa = "background-color: {$corFundo}; border: 3px solid {$corBorda}; box-shadow: 0 3px 6px rgba(0,0,0,0.1);";
-                        if ($isAtual && $isEmAndamento) {
-                            $estiloEtapa .= " animation: pulse-border 2s infinite;";
-                        }
+                        $acessibilidade = $etapasAcessiveis->get($etapaFluxo->id, ['pode_acessar' => true, 'pode_ver_detalhes' => true, 'pode_ver_historico' => false]);
+                        $podeAcessar = $acessibilidade['pode_acessar'];
+                        $podeVerDetalhes = $acessibilidade['pode_ver_detalhes'];
+                        $podeVerHistorico = $acessibilidade['pode_ver_historico'];
+                        $motivoBloqueio = $acessibilidade['motivo_bloqueio'];
                     @endphp
 
-                    <div class="time-label">
-                        <span class="bg-{{ $corIcone }}">
-                            Etapa {{ $etapaFluxo->ordem_execucao }} - {{ $etapaFluxo->nome_etapa }}
-                        </span>
-                    </div>
-
-                    <div>
-                        <i class="{{ $iconeEtapa }} bg-{{ $corIcone }}"></i>
-                        <div class="timeline-item" style="{{ $estiloEtapa }}">
-                            @if($isAtual && $isEmAndamento)
-                                <div class="ribbon-wrapper ribbon-lg">
-                                    <div class="ribbon bg-primary">
-                                        EM TRABALHO
-                                    </div>
-                                </div>
-                            @endif
-                            
-                            <span class="time">
-                                <i class="fas fa-clock"></i>
-                                @if($execucao)
-                                    {{ $execucao->data_inicio->format('d/m/Y H:i') }}
-                                    @if($execucao->data_conclusao)
-                                        - {{ $execucao->data_conclusao->format('d/m/Y H:i') }}
-                                    @endif
-                                @else
-                                    Não iniciada
-                                @endif
-                            </span>
-                            
-                            <h3 class="timeline-header">
-                                <a href="{{ route('workflow.etapa-detalhada', [$acao, $etapaFluxo]) }}" 
-                                   class="text-decoration-none">
-                                    <i class="{{ $etapaFluxo->modulo->icone ?? 'fas fa-tasks' }}"></i>
-                                    {{ $etapaFluxo->nome_etapa }}
-                                    @if($isAtual && $isEmAndamento)
-                                        <i class="fas fa-arrow-left text-primary ml-2" title="Etapa atual em trabalho"></i>
-                                    @endif
-                                </a>
-                                
-                                @if($execucao)
-                                    @php
-                                        $badgeClass = 'secondary';
-                                        switch($execucao->status->codigo) {
-                                            case 'APROVADO': $badgeClass = 'success'; break;
-                                            case 'REPROVADO': $badgeClass = 'danger'; break;
-                                            case 'DEVOLVIDO': $badgeClass = 'warning'; break;
-                                            case 'EM_ANALISE': $badgeClass = 'warning'; break;
-                                            case 'PENDENTE': $badgeClass = 'info'; break;
-                                        }
-                                    @endphp
-                                    <span class="badge badge-{{ $badgeClass }} float-right">
-                                        {{ $execucao->status->nome }}
-                                    </span>
-                                @else
-                                    <span class="badge badge-secondary float-right">Aguardando Início</span>
-                                @endif
-                            </h3>
-
-                            <div class="timeline-body">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <p><strong>Descrição:</strong> {{ $etapaFluxo->descricao_customizada ?? $etapaFluxo->modulo->descricao }}</p>
-                                        <p><strong>Solicitante:</strong> {{ $etapaFluxo->organizacaoSolicitante->nome }}</p>
-                                        <p><strong>Executor:</strong> {{ $etapaFluxo->organizacaoExecutora->nome }}</p>
-                                        <p><strong>Prazo:</strong> {{ $etapaFluxo->prazo_dias }} dias {{ $etapaFluxo->tipo_prazo === 'UTEIS' ? 'úteis' : 'corridos' }}</p>
-                                    </div>
-                                    <div class="col-md-6">
-                                        @if($execucao)
-                                            <p><strong>Responsável:</strong> {{ $execucao->usuarioResponsavel->name ?? 'N/A' }}</p>
-                                            @if($execucao->observacoes)
-                                                <p><strong>Observações:</strong> {{ $execucao->observacoes }}</p>
-                                            @endif
-                                            @if($execucao->justificativa)
-                                                <p><strong>Justificativa:</strong> {{ $execucao->justificativa }}</p>
-                                            @endif
-                                        @endif
-                                    </div>
-                                </div>
-
-                                <!-- Resumo dos Documentos da Etapa -->
-                                @if($etapaFluxo->grupoExigencia)
-                                    <div class="mt-3">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <h6><i class="fas fa-folder-open"></i> Documentos da Etapa</h6>
-                                            <a href="{{ route('workflow.etapa-detalhada', [$acao, $etapaFluxo]) }}" 
-                                               class="btn btn-primary btn-sm">
-                                                <i class="fas fa-eye"></i> Ver Detalhes
+                    <div class="timeline-item etapa-card">
+                        <i class="{{ $icone }} {{ $corIcone }}"></i>
+                        
+                        <div class="timeline-item compact-timeline-item">
+                            <!-- Header da Etapa - Mais Compacto -->
+                            <div class="etapa-header">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="etapa-title">
+                                        @if($podeVerDetalhes)
+                                            <a href="{{ route('workflow.etapa-detalhada', [$acao->id, $etapaFluxo->id]) }}" 
+                                               class="text-decoration-none etapa-link {{ !$podeAcessar ? 'text-muted' : '' }}"
+                                               @if(!$podeAcessar) 
+                                                   onclick="event.preventDefault(); 
+                                                           Swal.fire({
+                                                               title: 'Etapa Bloqueada',
+                                                               text: '{{ $motivoBloqueio }}',
+                                                               icon: 'warning',
+                                                               confirmButtonText: 'Entendi'
+                                                           });"
+                                               @endif>
+                                                <strong>{{ $etapaFluxo->nome_etapa }}</strong>
+                                                @if(!$podeAcessar)
+                                                    <i class="fas fa-lock ml-1 text-warning" title="{{ $motivoBloqueio }}"></i>
+                                                @endif
                                             </a>
-                                        </div>
-                                        
-                                        @if($execucao)
-                                            @php
-                                                $totalDocumentos = $etapaFluxo->grupoExigencia->templatesDocumento->count();
-                                                $documentosEnviados = $execucao->documentos->count();
-                                                $documentosAprovados = $execucao->documentos->where('status_documento', 'APROVADO')->count();
-                                            @endphp
-                                            
-                                            <div class="row mt-2">
-                                                <div class="col-md-4">
-                                                    <small class="text-muted">Total de Documentos:</small>
-                                                    <span class="badge badge-info">{{ $totalDocumentos }}</span>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <small class="text-muted">Enviados:</small>
-                                                    <span class="badge badge-warning">{{ $documentosEnviados }}</span>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <small class="text-muted">Aprovados:</small>
-                                                    <span class="badge badge-success">{{ $documentosAprovados }}</span>
-                                                </div>
-                                            </div>
                                         @else
-                                            <p class="text-muted mb-2">
-                                                <small>{{ $etapaFluxo->grupoExigencia->templatesDocumento->count() }} documento(s) necessário(s)</small>
-                                            </p>
+                                            <span class="text-muted">
+                                                <strong>{{ $etapaFluxo->nome_etapa }}</strong>
+                                                <i class="fas fa-lock ml-1 text-warning" title="{{ $motivoBloqueio }}"></i>
+                                            </span>
                                         @endif
                                     </div>
-                                @endif
-
-                                <!-- Ações da Etapa -->
-                                <div class="mt-3">
-                                    @if(!$execucao && $permissoes['pode_iniciar_etapa'] && $isAtual)
-                                        <button class="btn btn-success btn-sm" onclick="iniciarEtapa({{ $etapaFluxo->id }})">
-                                            <i class="fas fa-play"></i> Iniciar Etapa
-                                        </button>
-                                    @endif
                                     
-                                    @if($execucao && $permissoes['pode_concluir_etapa'] && $isEmAndamento)
-                                        <button class="btn btn-primary btn-sm" onclick="alterarStatusEtapa({{ $execucao->id }})">
-                                            <i class="fas fa-check"></i> Concluir Etapa
-                                        </button>
-                                    @endif
-
-                                    @if($execucao && $execucao->id)
-                                        <a href="{{ route('workflow.historico-etapa', $execucao->id) }}" 
-                                           class="btn btn-info btn-sm"
-                                           title="Ver histórico desta etapa">
-                                            <i class="fas fa-history"></i> Histórico
-                                        </a>
-                                    @endif
+                                    <div class="etapa-status">
+                                        @if($execucao)
+                                            <span class="badge badge-{{ $execucao->status->codigo === 'APROVADO' ? 'success' : ($execucao->status->codigo === 'REPROVADO' ? 'danger' : 'warning') }}">
+                                                {{ $execucao->status->nome }}
+                                            </span>
+                                        @else
+                                            <span class="badge badge-secondary">Não Iniciada</span>
+                                        @endif
+                                    </div>
                                 </div>
+                            </div>
+
+                            <!-- Informações Compactas -->
+                            <div class="etapa-body">
+                                <div class="row">
+                                    <!-- Informações Principais - Coluna 1 -->
+                                    <div class="col-md-8">
+                                        <div class="info-compacta">
+                                            <span class="info-item">
+                                                <i class="fas fa-building text-muted"></i>
+                                                <strong>Sol:</strong> {{ Str::limit($etapaFluxo->organizacaoSolicitante->nome, 20) }}
+                                            </span>
+                                            <span class="info-item">
+                                                <i class="fas fa-user-cog text-muted"></i>
+                                                <strong>Exec:</strong> {{ Str::limit($etapaFluxo->organizacaoExecutora->nome, 20) }}
+                                            </span>
+                                            <span class="info-item">
+                                                <i class="fas fa-clock text-muted"></i>
+                                                <strong>Prazo:</strong> {{ $etapaFluxo->prazo_dias }}d {{ $etapaFluxo->tipo_prazo === 'UTEIS' ? 'úteis' : 'corridos' }}
+                                            </span>
+                                            @if($etapaFluxo->grupoExigencia)
+                                                <span class="info-item">
+                                                    <i class="fas fa-folder text-muted"></i>
+                                                    <strong>Docs:</strong> {{ $etapaFluxo->grupoExigencia->templatesDocumento->count() }} necessário(s)
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </div>
+
+                                    <!-- Ações - Coluna 2 -->
+                                    <div class="col-md-4 text-right">
+                                        <div class="etapa-actions">
+                                            @if(!$execucao && $podeAcessar && $permissoes['pode_iniciar_etapa'] && $isAtual)
+                                                <button class="btn btn-success btn-sm" onclick="iniciarEtapa({{ $etapaFluxo->id }})">
+                                                    <i class="fas fa-play"></i> Iniciar
+                                                </button>
+                                            @elseif(!$execucao && !$podeAcessar)
+                                                <button class="btn btn-outline-secondary btn-sm" disabled title="{{ $motivoBloqueio }}">
+                                                    <i class="fas fa-lock"></i> Bloqueada
+                                                </button>
+                                            @elseif(!$execucao && !$isAtual)
+                                                <small class="text-muted">
+                                                    <i class="fas fa-hourglass-half"></i> Aguardando
+                                                </small>
+                                            @endif
+                                            
+                                            @if($execucao && $permissoes['pode_concluir_etapa'] && $isEmAndamento)
+                                                <button class="btn btn-primary btn-sm" onclick="alterarStatusEtapa({{ $execucao->id }})">
+                                                    <i class="fas fa-check"></i> Concluir
+                                                </button>
+                                            @endif
+
+                                            @if($podeVerDetalhes)
+                                                <a href="{{ route('workflow.etapa-detalhada', [$acao->id, $etapaFluxo->id]) }}" 
+                                                   class="btn btn-outline-info btn-sm" title="Ver detalhes">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                            @endif
+                                            
+                                            @if($execucao && $execucao->id && $podeVerHistorico)
+                                                <a href="{{ route('workflow.historico-etapa', $execucao->id) }}" 
+                                                   class="btn btn-outline-secondary btn-sm" title="Histórico">
+                                                    <i class="fas fa-history"></i>
+                                                </a>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Progress dos Documentos (se houver execução) -->
+                                @if($execucao && $etapaFluxo->grupoExigencia)
+                                    @php
+                                        $totalDocumentos = $etapaFluxo->grupoExigencia->templatesDocumento->count();
+                                        $documentosEnviados = $execucao->documentos->count();
+                                        $documentosAprovados = $execucao->documentos->where('status_documento', 'APROVADO')->count();
+                                        $percentual = $totalDocumentos > 0 ? ($documentosAprovados / $totalDocumentos) * 100 : 0;
+                                    @endphp
+                                    
+                                    <div class="progress-documentos mt-2">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <small class="text-muted">Progresso dos Documentos</small>
+                                            <small class="text-muted">{{ $documentosAprovados }}/{{ $totalDocumentos }}</small>
+                                        </div>
+                                        <div class="progress" style="height: 4px;">
+                                            <div class="progress-bar bg-success" style="width: {{ $percentual }}%"></div>
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     </div>
                 @endforeach
 
-                <div>
+                <!-- Conclusão do Workflow -->
+                <div class="timeline-item">
                     <i class="fas fa-flag-checkered bg-success"></i>
-                    <div class="timeline-item">
-                        <h3 class="timeline-header">Workflow Concluído</h3>
-                        <div class="timeline-body">
+                    <div class="timeline-item compact-timeline-item">
+                        <div class="etapa-header">
+                            <h6 class="mb-2">
+                                <i class="fas fa-trophy text-success"></i>
+                                Workflow Concluído
+                            </h6>
+                        </div>
+                        <div class="etapa-body">
                             @if($execucoes->where('status.codigo', 'APROVADO')->count() === $etapasFluxo->count())
-                                <div class="alert alert-success">
+                                <div class="alert alert-success alert-sm mb-0">
                                     <i class="fas fa-check-circle"></i>
                                     Todas as etapas foram concluídas com sucesso!
                                 </div>
                             @else
-                                <p>O workflow será concluído quando todas as etapas forem aprovadas.</p>
+                                <p class="mb-0 text-muted">
+                                    <small>O workflow será concluído quando todas as etapas forem aprovadas.</small>
+                                </p>
                             @endif
                         </div>
                     </div>
@@ -297,85 +263,202 @@
 
 @section('css')
     <style>
-        .timeline-item {
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border-radius: 0.375rem;
-            position: relative;
+        /* ===== LAYOUT COMPACTO PARA ETAPAS DO WORKFLOW ===== */
+        
+        .compact-timeline-item {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-radius: 8px;
+            border: 1px solid #e3e6f0;
             transition: all 0.3s ease;
-        }
-        
-        .timeline-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-        
-        .timeline-header {
-            border-bottom: 1px solid #dee2e6;
-            padding-bottom: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .badge-sm {
-            font-size: 0.7em;
-        }
-        
-        .alert-sm {
-            padding: 0.5rem;
             margin-bottom: 0.5rem;
         }
         
-        .table-sm th,
-        .table-sm td {
-            padding: 0.3rem;
+        .compact-timeline-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-color: #5a6c7d;
         }
-
-        /* Animação para etapa atual em trabalho */
+        
+        .etapa-card {
+            margin-bottom: 1rem;
+        }
+        
+        /* Header da Etapa */
+        .etapa-header {
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border-bottom: 1px solid #e3e6f0;
+            padding: 0.75rem 1rem;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .etapa-title {
+            flex: 1;
+        }
+        
+        .etapa-link {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #2c3e50;
+            transition: color 0.3s ease;
+        }
+        
+        .etapa-link:hover {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .etapa-status .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        
+        /* Body da Etapa */
+        .etapa-body {
+            padding: 0.75rem 1rem;
+            background: #ffffff;
+            border-radius: 0 0 8px 8px;
+        }
+        
+        /* Informações Compactas */
+        .info-compacta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        
+        .info-item i {
+            width: 16px;
+            margin-right: 0.25rem;
+            font-size: 0.8rem;
+        }
+        
+        .info-item strong {
+            margin-right: 0.25rem;
+            color: #495057;
+        }
+        
+        /* Ações da Etapa */
+        .etapa-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        
+        .etapa-actions .btn {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+        
+        /* Progress dos Documentos */
+        .progress-documentos {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #f1f3f4;
+        }
+        
+        .progress-documentos .progress {
+            border-radius: 2px;
+            background-color: #f1f3f4;
+        }
+        
+        .progress-documentos .progress-bar {
+            border-radius: 2px;
+        }
+        
+        /* Timeline Icons - Mais Compactos */
+        .timeline > .timeline-item > .fas,
+        .timeline > .timeline-item > .far,
+        .timeline > .timeline-item > .fab {
+            width: 30px;
+            height: 30px;
+            font-size: 14px;
+            line-height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .timeline::before {
+            background-color: #e3e6f0;
+            width: 2px;
+        }
+        
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .info-compacta {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .etapa-actions {
+                justify-content: center;
+                margin-top: 0.5rem;
+            }
+            
+            .col-md-4.text-right {
+                text-align: center !important;
+            }
+            
+            .etapa-header .d-flex {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .etapa-status {
+                text-align: center;
+            }
+        }
+        
+        /* Estados das Etapas */
+        .etapa-card:has(.bg-success) .compact-timeline-item {
+            border-left: 4px solid #28a745;
+        }
+        
+        .etapa-card:has(.bg-primary) .compact-timeline-item {
+            border-left: 4px solid #007bff;
+            animation: pulse-border 2s infinite;
+        }
+        
+        .etapa-card:has(.bg-info) .compact-timeline-item {
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .etapa-card:has(.bg-secondary) .compact-timeline-item {
+            border-left: 4px solid #6c757d;
+        }
+        
         @keyframes pulse-border {
             0% {
-                border-color: #2196f3;
-                box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+                border-left-color: #007bff;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             }
             50% {
-                border-color: #1976d2;
-                box-shadow: 0 0 0 4px rgba(33, 150, 243, 0.3);
+                border-left-color: #0056b3;
+                box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
             }
             100% {
-                border-color: #2196f3;
-                box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+                border-left-color: #007bff;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             }
         }
-
-        /* Estilo para ribbon "EM TRABALHO" */
-        .ribbon-wrapper {
-            position: absolute !important;
-            right: -2px;
-            top: -2px;
-            z-index: 10;
+        
+        /* Badges personalizados */
+        .badge {
+            font-weight: 500;
         }
-
-        .ribbon {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.75rem;
-            font-weight: bold;
-            text-align: center;
-            color: white;
-            position: relative;
-            transform: rotate(45deg);
-            transform-origin: 0 0;
-            min-width: 80px;
-        }
-
-        .ribbon:before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 100%;
-            border-style: solid;
-            border-width: 0 5px 5px 0;
-            border-color: transparent rgba(0,0,0,0.2) transparent transparent;
-        }
-
-        /* Melhorar cores dos badges */
+        
         .badge-success {
             background-color: #28a745 !important;
         }
@@ -390,63 +473,55 @@
         }
         
         .badge-info {
-            background-color: #007bff !important;
-        }
-
-        /* Efeito para ícones da timeline */
-        .timeline .timeline-item > .fas {
-            font-size: 1.2rem;
-            transition: all 0.3s ease;
+            background-color: #17a2b8 !important;
         }
         
-        .timeline .timeline-item > .bg-primary {
-            animation: pulse 2s infinite;
+        .badge-secondary {
+            background-color: #6c757d !important;
         }
-
-        @keyframes pulse {
-            0% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.1);
-            }
-            100% {
-                transform: scale(1);
-            }
-        }
-
-        /* Destacar melhor os links */
-        .timeline-header a {
-            font-weight: 600;
-            font-size: 1.1rem;
-        }
-
-        .timeline-header a:hover {
-            text-decoration: underline !important;
-        }
-
-        /* Estilos para os cards de resumo */
-        .info-box {
-            border-radius: 0.375rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-        }
-
-        .info-box:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-
-        /* Melhorar aparência dos botões */
+        
+        /* Botões compactos */
         .btn-sm {
+            font-size: 0.8rem;
             padding: 0.25rem 0.5rem;
-            font-size: 0.875rem;
-            border-radius: 0.25rem;
-            transition: all 0.2s ease;
+            line-height: 1.5;
         }
-
-        .btn-sm:hover {
+        
+        /* Alert compacto */
+        .alert-sm {
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        /* Melhoria na timeline geral */
+        .timeline {
+            margin-bottom: 0;
+        }
+        
+        .timeline-item {
+            margin-bottom: 1rem;
+        }
+        
+        /* Hover effects */
+        .etapa-actions .btn:hover {
             transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        /* Loading states */
+        .btn:disabled {
+            opacity: 0.6;
+            transform: none !important;
+        }
+        
+        /* Text utilities */
+        .text-muted {
+            color: #6c757d !important;
+        }
+        
+        small.text-muted {
+            font-size: 0.8rem;
         }
     </style>
 @stop

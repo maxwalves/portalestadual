@@ -107,6 +107,10 @@ Route::middleware(['auth'])->group(function () {
         
         // Histórico e Relatórios
         Route::get('workflow/execucao/{execucao}/historico', [\App\Http\Controllers\ExecucaoEtapaController::class, 'historicoEtapa'])->name('workflow.historico-etapa');
+        
+        // Fluxo Condicional - Escolha de Próxima Etapa
+        Route::get('workflow/execucao/{execucao}/opcoes-transicao', [\App\Http\Controllers\ExecucaoEtapaController::class, 'getOpcoesTransicao'])->name('workflow.opcoes-transicao');
+        Route::post('workflow/execucao/{execucao}/executar-transicao', [\App\Http\Controllers\ExecucaoEtapaController::class, 'executarTransicaoEscolhida'])->name('workflow.executar-transicao');
     });
     
     // ===== ROTAS DE GESTÃO DE WORKFLOW - APENAS ADMINS PARANACIDADE E SISTEMA =====

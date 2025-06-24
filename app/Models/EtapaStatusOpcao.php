@@ -31,23 +31,41 @@ class EtapaStatusOpcao extends Model
     ];
 
     /**
-     * Override para o método getKey() para chave primária composta
-     */
-    public function getKey()
-    {
-        $key = [];
-        foreach ($this->getKeyName() as $keyName) {
-            $key[$keyName] = $this->getAttribute($keyName);
-        }
-        return $key;
-    }
-
-    /**
      * Override para o método getKeyName() para chave primária composta  
      */
     public function getKeyName()
     {
         return $this->primaryKey;
+    }
+
+    /**
+     * Override para o método getKey() para chave primária composta
+     */
+    public function getKey()
+    {
+        if (is_array($this->getKeyName())) {
+            $key = [];
+            foreach ($this->getKeyName() as $keyName) {
+                $key[$keyName] = $this->getAttribute($keyName);
+            }
+            return $key;
+        }
+        return $this->getAttribute($this->getKeyName());
+    }
+
+    /**
+     * Override para o método getKeyForSaveQuery() para chave primária composta
+     */
+    protected function getKeyForSaveQuery()
+    {
+        if (is_array($this->getKeyName())) {
+            $key = [];
+            foreach ($this->getKeyName() as $keyName) {
+                $key[$keyName] = $this->original[$keyName] ?? $this->getAttribute($keyName);
+            }
+            return $key;
+        }
+        return $this->original[$this->getKeyName()] ?? $this->getKey();
     }
 
     /**

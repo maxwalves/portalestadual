@@ -68,6 +68,11 @@ class EtapaFluxo extends Model
         return $this->hasMany(ExecucaoEtapa::class);
     }
 
+    public function execucoesEtapa()
+    {
+        return $this->hasMany(ExecucaoEtapa::class);
+    }
+
     public function statusOpcoes()
     {
         return $this->belongsToMany(Status::class, 'etapa_status_opcoes')

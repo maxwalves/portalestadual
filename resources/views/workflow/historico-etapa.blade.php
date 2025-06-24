@@ -22,78 +22,100 @@
 @stop
 
 @section('content')
-    <!-- Informações da Etapa -->
-    <div class="card card-primary">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-info-circle"></i>
-                Informações da Etapa
-            </h3>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <strong>Ação:</strong> {{ $execucao->acao->nome }}<br>
-                    <strong>Etapa:</strong> {{ $execucao->etapaFluxo->nome_etapa }}<br>
-                    <strong>Status Atual:</strong> 
-                    <span class="badge badge-{{ $execucao->status_cor }}">
+    <!-- Informações da Etapa - Layout Compacto -->
+    <div class="card card-outline card-primary shadow-sm">
+        <div class="card-body p-3">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <div class="d-flex align-items-center">
+                        <div class="info-icon mr-3">
+                            <i class="fas fa-tasks fa-2x text-primary"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-1 text-dark">{{ $execucao->etapaFluxo->nome_etapa }}</h5>
+                            <p class="mb-0 text-muted">{{ $execucao->acao->nome }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 text-right">
+                    <span class="badge badge-{{ $execucao->status->codigo === 'APROVADO' ? 'success' : ($execucao->status->codigo === 'REPROVADO' ? 'danger' : 'warning') }} badge-lg">
                         {{ $execucao->status->nome }}
                     </span>
-                </div>
-                <div class="col-md-6">
-                    <strong>Responsável:</strong> {{ $execucao->usuarioResponsavel->name ?? 'N/A' }}<br>
-                    <strong>Data Início:</strong> {{ $execucao->data_inicio->format('d/m/Y H:i') }}<br>
-                    @if($execucao->data_conclusao)
-                        <strong>Data Conclusão:</strong> {{ $execucao->data_conclusao->format('d/m/Y H:i') }}
-                    @endif
+                    <div class="mt-1">
+                        <small class="text-muted">
+                            <i class="fas fa-clock"></i> {{ $execucao->data_inicio->format('d/m/Y H:i') }}
+                        </small>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Histórico -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-clock"></i>
-                Histórico de Ações
-            </h3>
-            <div class="card-tools">
-                <a href="{{ route('workflow.acao', $execucao->acao) }}" class="btn btn-secondary btn-sm">
-                    <i class="fas fa-arrow-left"></i> Voltar ao Workflow
+    <!-- Histórico - Timeline Moderna -->
+    <div class="card card-outline shadow-sm">
+        <div class="card-header bg-white border-bottom">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-dark">
+                    <i class="fas fa-history text-info mr-2"></i>
+                    Histórico de Ações
+                </h5>
+                <a href="{{ route('workflow.acao', $execucao->acao) }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-arrow-left"></i> Voltar
                 </a>
             </div>
         </div>
-        <div class="card-body">
-            <div class="timeline">
-                @forelse($historicos as $historico)
-                    <div class="time-label">
-                        <span class="bg-{{ $historico->cor_acao ?? 'primary' }}">
-                            {{ $historico->data_acao->format('d/m/Y H:i') }}
-                        </span>
-                    </div>
-                    <div>
-                        <i class="{{ $historico->icone_acao ?? 'fas fa-circle' }} bg-{{ $historico->cor_acao ?? 'primary' }}"></i>
-                        <div class="timeline-item">
-                            <span class="time">
-                                <i class="fas fa-user"></i>
-                                {{ $historico->usuario->name }}
-                            </span>
-                            <h3 class="timeline-header">
-                                {{ $historico->descricao_acao }}
-                            </h3>
-                            <div class="timeline-body">
+        <div class="card-body p-0">
+            @forelse($historicos as $historico)
+                <div class="historico-item {{ !$loop->last ? 'border-bottom' : '' }}">
+                    <div class="d-flex p-3">
+                        <!-- Ícone e Linha do Tempo -->
+                        <div class="historico-icon mr-3">
+                            <div class="icon-circle bg-{{ $historico->cor_acao ?? 'primary' }}">
+                                <i class="{{ $historico->icone_acao ?? 'fas fa-circle' }} text-white"></i>
+                            </div>
+                            @if(!$loop->last)
+                                <div class="timeline-line"></div>
+                            @endif
+                        </div>
+                        
+                        <!-- Conteúdo -->
+                        <div class="historico-content flex-grow-1">
+                            <!-- Header da Ação -->
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="mb-1 text-dark">{{ $historico->descricao_acao }}</h6>
+                                    <small class="text-muted">
+                                        <i class="fas fa-user mr-1"></i>{{ $historico->usuario->name ?? 'Sistema' }}
+                                    </small>
+                                </div>
+                                <div class="text-right">
+                                    <small class="text-muted font-weight-bold">
+                                        {{ $historico->data_acao->format('d/m/Y') }}
+                                    </small>
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ $historico->data_acao->format('H:i') }}
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <!-- Conteúdo Principal -->
+                            <div class="historico-details">
                                 @if($historico->observacao)
-                                    <p><strong>Observações:</strong> {{ $historico->observacao }}</p>
+                                    <div class="alert alert-light border-left border-info py-2 px-3 mb-2">
+                                        <small><strong>Observações:</strong> {{ $historico->observacao }}</small>
+                                    </div>
                                 @endif
                                 
                                 @if($historico->status_anterior_id && $historico->status_novo_id)
-                                    <p>
-                                        <strong>Status alterado:</strong>
-                                        <span class="badge badge-secondary">{{ $historico->statusAnterior->nome }}</span>
-                                        <i class="fas fa-arrow-right mx-2"></i>
-                                        <span class="badge badge-primary">{{ $historico->statusNovo->nome }}</span>
-                                    </p>
+                                    <div class="status-change mb-2">
+                                        <small class="text-muted">Status alterado:</small>
+                                        <div class="d-flex align-items-center mt-1">
+                                            <span class="badge badge-secondary badge-sm">{{ $historico->statusAnterior->nome }}</span>
+                                            <i class="fas fa-arrow-right mx-2 text-muted"></i>
+                                            <span class="badge badge-primary badge-sm">{{ $historico->statusNovo->nome }}</span>
+                                        </div>
+                                    </div>
                                 @endif
                                 
                                 @if($historico->dados_alterados)
@@ -101,71 +123,223 @@
                                         $dados = json_decode($historico->dados_alterados, true);
                                     @endphp
                                     @if(is_array($dados) && count($dados) > 0)
-                                        <div class="mt-2">
-                                            <small class="text-muted">
-                                                <strong>Detalhes:</strong>
-                                                @foreach($dados as $chave => $valor)
-                                                    @if($chave === 'documento_id')
-                                                        <br>• Documento ID: {{ $valor }}
-                                                    @elseif($chave === 'tipo_documento')
-                                                        <br>• Tipo: {{ $valor }}
-                                                    @elseif($chave === 'nome_arquivo')
-                                                        <br>• Arquivo: {{ $valor }}
-                                                    @elseif($chave === 'motivo')
-                                                        <br>• Motivo: {{ $valor }}
-                                                    @else
-                                                        <br>• {{ ucfirst(str_replace('_', ' ', $chave)) }}: {{ $valor }}
-                                                    @endif
-                                                @endforeach
-                                            </small>
+                                        <div class="collapse" id="detalhes{{ $historico->id }}">
+                                            <div class="border border-light rounded p-2 mt-2">
+                                                <small class="text-muted">
+                                                    <strong>Detalhes técnicos:</strong>
+                                                    @foreach($dados as $chave => $valor)
+                                                        @if($chave === 'documento_id')
+                                                            <br>• Documento ID: {{ $valor }}
+                                                        @elseif($chave === 'tipo_documento')
+                                                            <br>• Tipo: {{ $valor }}
+                                                        @elseif($chave === 'nome_arquivo')
+                                                            <br>• Arquivo: {{ $valor }}
+                                                        @elseif($chave === 'motivo')
+                                                            <br>• Motivo: {{ $valor }}
+                                                        @else
+                                                            <br>• {{ ucfirst(str_replace('_', ' ', $chave)) }}: {{ $valor }}
+                                                        @endif
+                                                    @endforeach
+                                                </small>
+                                            </div>
                                         </div>
+                                        <button class="btn btn-link btn-sm p-0 mt-1" type="button" data-toggle="collapse" data-target="#detalhes{{ $historico->id }}">
+                                            <small><i class="fas fa-eye"></i> Ver detalhes técnicos</small>
+                                        </button>
                                     @endif
-                                @endif
-
-                                @if($historico->ip_usuario)
-                                    <div class="mt-2">
-                                        <small class="text-muted">
-                                            <i class="fas fa-globe"></i> IP: {{ $historico->ip_usuario }}
-                                            @if($historico->user_agent)
-                                                <br><i class="fas fa-desktop"></i> {{ $historico->user_agent }}
-                                            @endif
-                                        </small>
-                                    </div>
                                 @endif
                             </div>
                         </div>
                     </div>
-                @empty
-                    <div class="text-center text-muted py-5">
-                        <i class="fas fa-history fa-3x mb-3"></i>
-                        <h5>Nenhum histórico encontrado</h5>
-                        <p>Esta etapa ainda não possui registros de histórico.</p>
-                    </div>
-                @endforelse
-                
-                <div>
-                    <i class="fas fa-clock bg-gray"></i>
                 </div>
-            </div>
+            @empty
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-history fa-3x mb-3 text-light"></i>
+                    <h5 class="text-muted">Nenhum histórico encontrado</h5>
+                    <p class="text-muted">Esta etapa ainda não possui registros de histórico.</p>
+                </div>
+            @endforelse
         </div>
     </div>
 @stop
 
 @section('css')
     <style>
-        .timeline-item {
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        /* ===== LAYOUT CLEAN DO HISTÓRICO ===== */
+        
+        /* Card principal */
+        .card-outline {
+            border: 1px solid #e3e6f0;
+            border-radius: 8px;
+        }
+        
+        .shadow-sm {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+        }
+        
+        /* Header do card */
+        .card-header.bg-white {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+            border-bottom: 1px solid #e3e6f0 !important;
+            padding: 1rem 1.25rem;
+        }
+        
+        /* Badge melhorado */
+        .badge-lg {
+            font-size: 0.9rem;
+            padding: 0.4rem 0.8rem;
             border-radius: 0.375rem;
         }
         
-        .timeline-header {
-            border-bottom: 1px solid #dee2e6;
-            padding-bottom: 0.5rem;
-            margin-bottom: 1rem;
+        .badge-sm {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
         }
         
-        .badge {
-            font-size: 0.85em;
+        /* ===== TIMELINE MODERNA ===== */
+        
+        .historico-item {
+            transition: background-color 0.2s ease;
+        }
+        
+        .historico-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .historico-item.border-bottom {
+            border-bottom: 1px solid #e9ecef !important;
+        }
+        
+        /* Ícone circular */
+        .historico-icon {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .icon-circle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 3px solid #ffffff;
+        }
+        
+        /* Linha de conexão */
+        .timeline-line {
+            width: 2px;
+            height: calc(100% + 1rem);
+            background: linear-gradient(to bottom, #e9ecef 0%, transparent 100%);
+            margin-top: 0.5rem;
+            position: absolute;
+            top: 36px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        /* Conteúdo */
+        .historico-content h6 {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.25rem;
+        }
+        
+        /* Alert customizado para observações */
+        .alert-light {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-left: 4px solid #17a2b8;
+            border-radius: 0.375rem;
+        }
+        
+        /* Status change */
+        .status-change {
+            background-color: #f1f3f4;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+        }
+        
+        /* Botão de detalhes */
+        .btn-link {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        
+        .btn-link:hover {
+            color: #495057;
+            text-decoration: underline;
+        }
+        
+        /* Cores dos ícones */
+        .bg-primary {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+        }
+        
+        .bg-success {
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%) !important;
+        }
+        
+        .bg-warning {
+            background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%) !important;
+        }
+        
+        .bg-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+        }
+        
+        .bg-info {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%) !important;
+        }
+        
+        .bg-secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
+        }
+        
+        /* Info icon */
+        .info-icon {
+            min-width: 48px;
+            text-align: center;
+        }
+        
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .card-body.p-3 {
+                padding: 1rem !important;
+            }
+            
+            .historico-item .d-flex {
+                padding: 1rem !important;
+            }
+            
+            .historico-icon {
+                margin-right: 1rem !important;
+            }
+            
+            .icon-circle {
+                width: 32px;
+                height: 32px;
+                font-size: 12px;
+            }
+            
+            .badge-lg {
+                font-size: 0.8rem;
+                padding: 0.3rem 0.6rem;
+            }
+        }
+        
+        /* Smooth transitions */
+        .card, .historico-item, .icon-circle, .badge {
+            transition: all 0.2s ease;
+        }
+        
+        /* Focus states */
+        .btn:focus {
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
         }
     </style>
-@stop 
+@stop
