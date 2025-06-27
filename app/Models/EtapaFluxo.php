@@ -166,7 +166,7 @@ class EtapaFluxo extends Model
     {
         return $this->grupoExigencia && 
                $this->grupoExigencia->templatesDocumento()
-                   ->where('is_obrigatorio', true)
+                   ->wherePivot('is_obrigatorio', true)
                    ->exists();
     }
 

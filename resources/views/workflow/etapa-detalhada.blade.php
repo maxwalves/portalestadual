@@ -446,14 +446,23 @@
                     <div class="card card-secondary card-outline">
                         <div class="card-body text-center">
                             @if($permissoes['pode_concluir_etapa'] && $execucao->status->codigo !== 'APROVADO')
+                                <!-- NOVA ABORDAGEM: Sempre permitir direcionamento (flexibilidade total) -->
+                                @if($permissoes['pode_escolher_proxima_etapa'] ?? false)
+                                    <button class="btn btn-primary btn-lg mr-2" onclick="escolherProximaEtapa()">
+                                        <i class="fas fa-route"></i> Direcionar Etapa
+                                    </button>
+                                @else
+                                    <button class="btn btn-success btn-lg mr-2" onclick="alterarStatusEtapa()">
+                                        <i class="fas fa-check-circle"></i> Alterar Status
+                                    </button>
+                                @endif
+                                
                                 @php
-                                    // Verificar se todos os documentos obrigatórios estão aprovados
-                                    $podeAprovar = true;
+                                    // Mostrar informações sobre documentos pendentes (apenas informativo)
                                     $documentosPendentes = [];
-                                    
                                     if($etapaFluxo->grupoExigencia) {
                                         $templatesObrigatorios = $etapaFluxo->grupoExigencia->templatesDocumento()
-                                            ->where('is_obrigatorio', true)
+                                            ->wherePivot('is_obrigatorio', true)
                                             ->get();
                                             
                                         foreach($templatesObrigatorios as $template) {
@@ -463,41 +472,18 @@
                                                 ->exists() : false;
                                                 
                                             if(!$documentoAprovado) {
-                                                $podeAprovar = false;
                                                 $documentosPendentes[] = $template->nome;
                                             }
                                         }
                                     }
                                 @endphp
                                 
-                                @if($podeAprovar)
-                                    <!-- Botão para escolher próxima etapa (novo fluxo condicional) -->
-                                    @if($permissoes['pode_escolher_proxima_etapa'] ?? false)
-                                        <button class="btn btn-primary btn-lg mr-2" onclick="escolherProximaEtapa()">
-                                            <i class="fas fa-route"></i> Escolher Próxima Etapa
-                                        </button>
-                                    @else
-                                        <button class="btn btn-success btn-lg mr-2" onclick="alterarStatusEtapa()">
-                                            <i class="fas fa-check-circle"></i> Concluir Etapa
-                                        </button>
-                                    @endif
-                                @else
-                                    <button class="btn btn-success btn-lg mr-2" disabled 
-                                            title="Aguardando aprovação de documentos obrigatórios: {{ implode(', ', $documentosPendentes) }}"
-                                            data-toggle="tooltip">
-                                        <i class="fas fa-clock"></i> Aguardando Documentos
-                                    </button>
-                                    <div class="mt-2">
-                                        <small class="text-warning">
-                                            <i class="fas fa-exclamation-triangle"></i>
-                                            Para concluir esta etapa, todos os documentos obrigatórios devem estar aprovados.
+                                @if(!empty($documentosPendentes))
+                                    <div class="mt-3 alert alert-info">
+                                        <small>
+                                            <i class="fas fa-info-circle"></i>
+                                            <strong>Informativo:</strong> Documentos pendentes de aprovação: {{ implode(', ', $documentosPendentes) }}
                                         </small>
-                                        @if(!empty($documentosPendentes))
-                                            <br>
-                                            <small class="text-muted">
-                                                Pendentes: {{ implode(', ', $documentosPendentes) }}
-                                            </small>
-                                        @endif
                                     </div>
                                 @endif
                             @elseif($execucao->status->codigo === 'APROVADO')

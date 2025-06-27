@@ -81,7 +81,9 @@ class ExecucaoEtapaController extends Controller
                 'modulo',
                 'grupoExigencia.templatesDocumento.tipoDocumento',
                 'organizacaoSolicitante',
-                'organizacaoExecutora'
+                'organizacaoExecutora',
+                'transicoesOrigem.etapaDestino',
+                'transicoesOrigem.statusCondicao'
             ])
             ->orderBy('ordem_execucao')
             ->get();
@@ -156,25 +158,10 @@ class ExecucaoEtapaController extends Controller
             return 'Sua organização não participa desta etapa';
         }
 
-        // Verificar se há etapas anteriores não concluídas
-        if ($etapaFluxo->ordem_execucao > 1) {
-            $etapasAnterioresPendentes = EtapaFluxo::where('tipo_fluxo_id', $etapaFluxo->tipo_fluxo_id)
-                ->where('ordem_execucao', '<', $etapaFluxo->ordem_execucao)
-                ->whereDoesntHave('execucoesEtapa', function($query) use ($acao) {
-                    $query->where('acao_id', $acao->id)
-                          ->whereHas('status', function($q) {
-                              $q->where('codigo', 'APROVADO');
-                          });
-                })
-                ->orderBy('ordem_execucao')
-                ->first();
-
-            if ($etapasAnterioresPendentes) {
-                return "Complete a etapa anterior: {$etapasAnterioresPendentes->nome_etapa}";
-            }
-        }
-
-        return 'Etapa não acessível';
+        // NOVA ABORDAGEM: Sistema flexível - não verificar etapas anteriores
+        // O bloqueio agora é apenas por organização, não por sequência
+        
+        return 'Etapa acessível'; // Na verdade, esta função não deveria ser chamada se há acesso
     }
 
     /**
@@ -235,22 +222,8 @@ class ExecucaoEtapaController extends Controller
         
         // Se pode visualizar mas não pode interagir, explicar o motivo específico
         if ($statusInteracao['pode_visualizar'] && !$statusInteracao['pode_interagir']) {
-            // Verificar primeiro se há etapas anteriores pendentes (prioridade máxima)
-            $etapasAnterioresPendentes = EtapaFluxo::where('tipo_fluxo_id', $etapaFluxo->tipo_fluxo_id)
-                ->where('ordem_execucao', '<', $etapaFluxo->ordem_execucao)
-                ->whereDoesntHave('execucoesEtapa', function($query) use ($acao) {
-                    $query->where('acao_id', $acao->id)
-                          ->whereHas('status', function($q) {
-                              $q->where('codigo', 'APROVADO');
-                          });
-                })
-                ->orderBy('ordem_execucao')
-                ->first();
-
-            if ($etapasAnterioresPendentes) {
-                $statusInteracao['motivo_bloqueio'] = "Aguardando conclusão da etapa anterior: {$etapasAnterioresPendentes->nome_etapa}";
-                $statusInteracao['organizacao_responsavel_atual'] = "Etapa anterior pendente";
-            } else {
+            // NOVA ABORDAGEM: Não verificar etapas anteriores - sistema flexível
+            {
                 // Verificar se o usuário não pertence às organizações desta etapa específica
                 $userOrgId = $user->organizacao_id;
                 $pertenceEtapa = ($userOrgId === $etapaFluxo->organizacao_solicitante_id) || 
@@ -684,11 +657,14 @@ class ExecucaoEtapaController extends Controller
     /**
      * Exibir histórico da etapa
      */
-    public function historicoEtapa(ExecucaoEtapa $execucao)
+    public function historicoEtapa(Request $request, ExecucaoEtapa $execucao)
     {
         // Verificar se o usuário pode acessar esta ação (projeto)
         // Permite que todos os envolvidos no projeto vejam o histórico
         if (!$this->canAccessAcao($execucao->acao)) {
+            if ($request->ajax()) {
+                return response()->json(['error' => 'Acesso negado a este histórico.'], 403);
+            }
             abort(403, 'Acesso negado a este histórico.');
         }
 
@@ -703,13 +679,42 @@ class ExecucaoEtapaController extends Controller
         // Buscar históricos com relacionamentos
         $historicos = HistoricoEtapa::where('execucao_etapa_id', $execucao->id)
             ->with([
-                'usuario',
+                'usuario.organizacao',
                 'statusAnterior',
                 'statusNovo'
             ])
             ->orderBy('data_acao', 'desc')
             ->get();
 
+        // Se for requisição AJAX, retorna apenas o conteúdo do modal
+        if ($request->ajax()) {
+            \Log::info('Requisição AJAX para histórico detectada', [
+                'execucao_id' => $execucao->id,
+                'historicos_count' => $historicos->count(),
+                'user_id' => Auth::id()
+            ]);
+            
+            // Verificar se a view existe
+            if (!view()->exists('workflow.historico-modal-content')) {
+                \Log::error('View workflow.historico-modal-content não encontrada');
+                return response()->json(['error' => 'Template de histórico não encontrado'], 500);
+            }
+            
+            try {
+                $content = view('workflow.historico-modal-content', compact('execucao', 'historicos'))->render();
+                \Log::info('View renderizada com sucesso', ['content_length' => strlen($content)]);
+                return $content;
+            } catch (\Exception $e) {
+                \Log::error('Erro ao renderizar view de histórico', [
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]);
+                return response()->json(['error' => 'Erro ao renderizar histórico: ' . $e->getMessage()], 500);
+            }
+        }
+
+        // Caso contrário, retorna a página completa
         return view('workflow.historico-etapa', compact('execucao', 'historicos'));
     }
 
@@ -734,7 +739,7 @@ class ExecucaoEtapaController extends Controller
         $grupoExigencia = $execucao->etapaFluxo->grupoExigencia;
         if ($grupoExigencia) {
             $templatesObrigatorios = $grupoExigencia->templatesDocumento()
-                ->where('is_obrigatorio', true)
+                ->wherePivot('is_obrigatorio', true)
                 ->get();
             
             $documentosPendentes = [];
@@ -1029,19 +1034,20 @@ class ExecucaoEtapaController extends Controller
 
             // === PERMISSÕES PARA ETAPA JÁ INICIADA ===
             if ($execucao) {
-                // Pode enviar documentos se for da organização executora E a etapa estiver ativa
-                if ($userOrgId === $etapaAtual->organizacao_executora_id) {
+                // NOVA ABORDAGEM: Ambas organizações podem enviar documentos
+                if ($userOrgId === $etapaAtual->organizacao_executora_id || 
+                    $userOrgId === $etapaAtual->organizacao_solicitante_id) {
                     $permissoes['pode_enviar_documento'] = $this->podeEnviarDocumento($execucao);
                 }
 
-                // Pode aprovar documentos e concluir etapa se for da organização solicitante
+                // Pode aprovar documentos e direcionar etapa se for da organização solicitante
                 if ($userOrgId === $etapaAtual->organizacao_solicitante_id) {
                     $permissoes['pode_aprovar_documento'] = true;
                     $permissoes['pode_concluir_etapa'] = $this->podeConcluirEtapa($execucao);
                     
-                    // Nova permissão: pode escolher próxima etapa quando todos documentos aprovados
-                    if ($this->todosDocumentosAprovados($execucao) && 
-                        in_array($execucao->status->codigo, ['PENDENTE', 'EM_ANALISE'])) {
+                    // NOVA ABORDAGEM: Sempre pode escolher próxima etapa (flexibilidade total)
+                    // A validação de pendências será feita no dashboard, não como bloqueio
+                    if ($execucao->status->codigo !== 'CANCELADO') {
                         $permissoes['pode_escolher_proxima_etapa'] = true;
                     }
                 }
@@ -1107,13 +1113,13 @@ class ExecucaoEtapaController extends Controller
             return false;
         }
         
-        // Verificar se a etapa está em um status que permite envio de documento
-        $statusPermitidos = ['PENDENTE', 'EM_ANALISE', 'DEVOLVIDO'];
-        if (!in_array($execucao->status->codigo, $statusPermitidos)) {
-            \Log::warning('Status da etapa não permite envio de documento', [
+        // NOVA ABORDAGEM: Permitir envio de documento independente do status
+        // O fluxo é controlado pelas transições, não por restrições de documento
+        // Apenas etapas CANCELADAS não permitem envio
+        if ($execucao->status->codigo === 'CANCELADO') {
+            \Log::warning('Etapa cancelada não permite envio de documento', [
                 'execucao_id' => $execucao->id,
-                'status_atual' => $execucao->status->codigo,
-                'status_permitidos' => $statusPermitidos
+                'status_atual' => $execucao->status->codigo
             ]);
             return false;
         }
@@ -1142,33 +1148,10 @@ class ExecucaoEtapaController extends Controller
     {
         $user = Auth::user();
         
-        // Deve ser da organização solicitante
-        if ($user->organizacao_id !== $execucao->etapaFluxo->organizacao_solicitante_id) {
-            return false;
-        }
-
-        // Verificar se todos os documentos obrigatórios estão aprovados
-        $grupoExigencia = $execucao->etapaFluxo->grupoExigencia;
-        if (!$grupoExigencia) {
-            return true; // Etapa sem documentos obrigatórios
-        }
-
-        $templatesObrigatorios = $grupoExigencia->templatesDocumento()
-            ->where('is_obrigatorio', true)
-            ->get();
-
-        foreach ($templatesObrigatorios as $template) {
-            $documentoAprovado = $execucao->documentos()
-                ->where('tipo_documento_id', $template->tipo_documento_id)
-                ->where('status_documento', Documento::STATUS_APROVADO)
-                ->exists();
-
-            if (!$documentoAprovado) {
-                return false;
-            }
-        }
-
-        return true;
+        // NOVA ABORDAGEM: Flexibilidade total
+        // Deve ser da organização solicitante E etapa não pode estar cancelada
+        return $user->organizacao_id === $execucao->etapaFluxo->organizacao_solicitante_id && 
+               $execucao->status->codigo !== 'CANCELADO';
     }
 
     private function verificarConclusaoEtapa(ExecucaoEtapa $execucao)
@@ -1200,7 +1183,7 @@ class ExecucaoEtapaController extends Controller
         }
 
         $templatesObrigatorios = $grupoExigencia->templatesDocumento()
-            ->where('is_obrigatorio', true)
+            ->wherePivot('is_obrigatorio', true)
             ->get();
 
         if ($templatesObrigatorios->isEmpty()) {
@@ -1239,12 +1222,15 @@ class ExecucaoEtapaController extends Controller
                 ], 403);
             }
 
-            // Verificar se todos os documentos estão aprovados
-            if (!$this->todosDocumentosAprovados($execucao)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Nem todos os documentos obrigatórios foram aprovados'
-                ], 400);
+            // NOVA ABORDAGEM: Não bloquear por documentos pendentes
+            // Mostrar informação, mas permitir direcionamento (flexibilidade total)
+            $documentosPendentes = !$this->todosDocumentosAprovados($execucao);
+            if ($documentosPendentes) {
+                \Log::info('Direcionamento permitido mesmo com documentos pendentes', [
+                    'execucao_id' => $execucao->id,
+                    'user_id' => $user->id,
+                    'observacao' => 'Flexibilidade total - validação apenas informativa'
+                ]);
             }
 
             // Buscar opções de status disponíveis para esta etapa
@@ -1449,12 +1435,15 @@ class ExecucaoEtapaController extends Controller
                 ], 403);
             }
 
-            // Verificar se todos os documentos estão aprovados
-            if (!$this->todosDocumentosAprovados($execucao)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Nem todos os documentos obrigatórios foram aprovados'
-                ], 400);
+            // NOVA ABORDAGEM: Permitir transição mesmo com documentos pendentes
+            // A validação será apenas informativa no dashboard
+            $documentosPendentes = !$this->todosDocumentosAprovados($execucao);
+            if ($documentosPendentes) {
+                \Log::info('Transição executada mesmo com documentos pendentes', [
+                    'execucao_id' => $execucao->id,
+                    'user_id' => $user->id,
+                    'observacao' => 'Sistema flexível - permitindo transição'
+                ]);
             }
 
             // Buscar o novo status
@@ -1972,43 +1961,15 @@ class ExecucaoEtapaController extends Controller
             return false;
         }
 
-        // Se for a primeira etapa (ordem_execucao = 1), sempre pode interagir se pertence à organização
-        if ($etapaFluxo->ordem_execucao <= 1) {
-            return true;
-        }
-
-        // ===== VALIDAÇÃO DE SEQUÊNCIA =====
-        // Verificar se todas as etapas anteriores foram concluídas
-        $etapasAnteriores = EtapaFluxo::where('tipo_fluxo_id', $etapaFluxo->tipo_fluxo_id)
-            ->where('ordem_execucao', '<', $etapaFluxo->ordem_execucao)
-            ->orderBy('ordem_execucao')
-            ->get();
-
-        foreach ($etapasAnteriores as $etapaAnterior) {
-            $execucaoAnterior = ExecucaoEtapa::where('acao_id', $acao->id)
-                ->where('etapa_fluxo_id', $etapaAnterior->id)
-                ->first();
-
-            // Se não há execução OU a execução não está aprovada, não pode interagir
-            if (!$execucaoAnterior || $execucaoAnterior->status->codigo !== 'APROVADO') {
-                \Log::info('Etapa anterior não concluída - interação negada (mas visualização permitida)', [
-                    'etapa_atual_id' => $etapaFluxo->id,
-                    'etapa_atual_ordem' => $etapaFluxo->ordem_execucao,
-                    'etapa_anterior_id' => $etapaAnterior->id,
-                    'etapa_anterior_ordem' => $etapaAnterior->ordem_execucao,
-                    'execucao_anterior_status' => $execucaoAnterior ? $execucaoAnterior->status->codigo : 'NAO_INICIADA',
-                    'user_id' => $user->id,
-                    'motivo' => 'Etapa anterior nao aprovada'
-                ]);
-                return false;
-            }
-        }
-
-        \Log::info('Interação com etapa permitida - sequência respeitada', [
+        // NOVA ABORDAGEM: FLEXIBILIDADE TOTAL
+        // Remover validação de sequência obrigatória - cada etapa é independente
+        // O fluxo é controlado pelas transições, não por bloqueios rígidos
+        
+        \Log::info('Interação com etapa permitida - sistema flexível', [
             'user_id' => $user->id,
             'etapa_id' => $etapaFluxo->id,
             'etapa_ordem' => $etapaFluxo->ordem_execucao,
-            'etapas_anteriores_concluidas' => $etapasAnteriores->count()
+            'motivo' => 'Flexibilidade total - sem validação de sequência'
         ]);
 
         return true;

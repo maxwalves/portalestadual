@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class TemplateDocumento extends Model
 {
@@ -35,11 +36,22 @@ class TemplateDocumento extends Model
     ];
 
     /**
-     * Relacionamento com grupo de exigência
+     * Relacionamento com grupo de exigência (legacy - manter por compatibilidade)
      */
     public function grupoExigencia(): BelongsTo
     {
         return $this->belongsTo(GrupoExigencia::class);
+    }
+
+    /**
+     * Relacionamento com grupos de exigências (many-to-many)
+     */
+    public function gruposExigencia(): BelongsToMany
+    {
+        return $this->belongsToMany(GrupoExigencia::class, 'grupo_exigencia_template_documento')
+                    ->withPivot(['is_obrigatorio', 'ordem', 'observacoes'])
+                    ->withTimestamps()
+                    ->orderByPivot('ordem');
     }
 
     /**
@@ -59,19 +71,19 @@ class TemplateDocumento extends Model
     }
 
     /**
-     * Scope para templates obrigatórios
+     * Scope para templates obrigatórios (apenas para tabela direta)
      */
     public function scopeObrigatorios($query)
     {
-        return $query->where('is_obrigatorio', true);
+        return $query->where('template_documentos.is_obrigatorio', true);
     }
 
     /**
-     * Scope para templates opcionais
+     * Scope para templates opcionais (apenas para tabela direta)
      */
     public function scopeOpcionais($query)
     {
-        return $query->where('is_obrigatorio', false);
+        return $query->where('template_documentos.is_obrigatorio', false);
     }
 
     /**

@@ -405,6 +405,13 @@ return [
             'can'         => ['admin', 'admin_paranacidade', 'tecnico_paranacidade', 'admin_secretaria', 'tecnico_secretaria'],
             'submenu'     => [
                 [
+                    'text'        => 'Grupos de Exigências',
+                    'url'         => 'grupo-exigencias',
+                    'icon'        => 'fas fa-layer-group',
+                    'icon_color'  => 'blue',
+                    'can'         => ['admin', 'admin_paranacidade'],
+                ],
+                [
                     'text'        => 'Tipos de Documento',
                     'url'         => 'tipos-documento',
                     'icon'        => 'fas fa-file-alt',

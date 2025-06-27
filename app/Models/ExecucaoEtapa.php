@@ -150,8 +150,8 @@ class ExecucaoEtapa extends Model
 
         return $this->etapaFluxo->grupoExigencia->templatesDocumento()
             ->with('tipoDocumento')
-            ->where('is_obrigatorio', true)
-            ->orderBy('ordem')
+            ->wherePivot('is_obrigatorio', true)
+            ->orderByPivot('ordem')
             ->get();
     }
 
@@ -173,9 +173,12 @@ class ExecucaoEtapa extends Model
             return false;
         }
 
-        // Deve ser da organização executora e etapa deve estar ativa
-        return $user->organizacao_id === $this->etapaFluxo->organizacao_executora_id &&
-               in_array($this->status->codigo, ['PENDENTE', 'EM_ANALISE', 'DEVOLVIDO']);
+        // NOVA ABORDAGEM: Flexibilidade total
+        // Deve ser da organização executora OU solicitante (ambas podem enviar documentos)
+        // Apenas etapas canceladas não permitem envio
+        return ($user->organizacao_id === $this->etapaFluxo->organizacao_executora_id || 
+                $user->organizacao_id === $this->etapaFluxo->organizacao_solicitante_id) &&
+               $this->status->codigo !== 'CANCELADO';
     }
 
     /**
@@ -188,33 +191,10 @@ class ExecucaoEtapa extends Model
             return false;
         }
 
-        // Deve ser da organização solicitante
-        if ($user->organizacao_id !== $this->etapaFluxo->organizacao_solicitante_id) {
-            return false;
-        }
-
-        // Verificar se todos os documentos obrigatórios estão aprovados
-        $grupoExigencia = $this->etapaFluxo->grupoExigencia;
-        if (!$grupoExigencia) {
-            return true; // Etapa sem documentos obrigatórios
-        }
-
-        $templatesObrigatorios = $grupoExigencia->templatesDocumento()
-            ->where('is_obrigatorio', true)
-            ->get();
-
-        foreach ($templatesObrigatorios as $template) {
-            $documentoAprovado = $this->documentos()
-                ->where('tipo_documento_id', $template->tipo_documento_id)
-                ->where('status_documento', \App\Models\Documento::STATUS_APROVADO)
-                ->exists();
-
-            if (!$documentoAprovado) {
-                return false;
-            }
-        }
-
-        return true;
+        // NOVA ABORDAGEM: Flexibilidade total
+        // Deve ser da organização solicitante E etapa não pode estar cancelada
+        return $user->organizacao_id === $this->etapaFluxo->organizacao_solicitante_id && 
+               $this->status->codigo !== 'CANCELADO';
     }
 
     /**

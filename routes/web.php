@@ -142,6 +142,19 @@ Route::middleware(['auth'])->group(function () {
         ]);
         Route::post('tipos-documento/{tipo_documento}/toggle-ativo', [\App\Http\Controllers\TipoDocumentoController::class, 'toggleAtivo'])->name('tipos-documento.toggle-ativo');
         
+        // Grupos de Exigência
+        Route::resource('grupo-exigencias', \App\Http\Controllers\GrupoExigenciaController::class)->parameters([
+            'grupo-exigencias' => 'grupoExigencia'
+        ]);
+        Route::patch('grupo-exigencias/{grupoExigencia}/toggle-ativo', [\App\Http\Controllers\GrupoExigenciaController::class, 'toggleAtivo'])->name('grupo-exigencias.toggle-ativo');
+        Route::post('grupo-exigencias/{grupoExigencia}/duplicar', [\App\Http\Controllers\GrupoExigenciaController::class, 'duplicar'])->name('grupo-exigencias.duplicar');
+        
+        // Gerenciamento de templates nos grupos
+        Route::get('grupo-exigencias/{grupoExigencia}/templates', [\App\Http\Controllers\GrupoExigenciaController::class, 'gerenciarTemplates'])->name('grupo-exigencias.templates');
+        Route::post('grupo-exigencias/{grupoExigencia}/templates/vincular', [\App\Http\Controllers\GrupoExigenciaController::class, 'vincularTemplate'])->name('grupo-exigencias.vincular-template');
+        Route::delete('grupo-exigencias/{grupoExigencia}/templates/{templateDocumento}', [\App\Http\Controllers\GrupoExigenciaController::class, 'desvincularTemplate'])->name('grupo-exigencias.desvincular-template');
+        Route::patch('grupo-exigencias/{grupoExigencia}/templates/{templateDocumento}', [\App\Http\Controllers\GrupoExigenciaController::class, 'atualizarVinculo'])->name('grupo-exigencias.atualizar-vinculo');
+        
         Route::resource('template-documentos', \App\Http\Controllers\TemplateDocumentoController::class)->parameters([
             'template-documentos' => 'template_documento'
         ]);
@@ -152,6 +165,8 @@ Route::middleware(['auth'])->group(function () {
         // APIs de apoio para gestão documental
         Route::get('api/tipos-documento/ativos', [\App\Http\Controllers\TipoDocumentoController::class, 'apiTiposAtivos'])->name('api.tipos-documento.ativos');
         Route::post('api/tipos-documento/{tipo_documento}/verificar-compatibilidade', [\App\Http\Controllers\TipoDocumentoController::class, 'verificarCompatibilidade'])->name('api.tipos-documento.verificar-compatibilidade');
+        Route::get('api/grupo-exigencias/ativos', [\App\Http\Controllers\GrupoExigenciaController::class, 'apiGruposAtivos'])->name('api.grupo-exigencias.ativos');
+        Route::get('api/grupo-exigencias/{grupoExigencia}/estatisticas', [\App\Http\Controllers\GrupoExigenciaController::class, 'apiEstatisticas'])->name('api.grupo-exigencias.estatisticas');
     });
 
     // ===== ROTAS DE DOCUMENTOS - ACESSO BASEADO EM ORGANIZAÇÃO =====
