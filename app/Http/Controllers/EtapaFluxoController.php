@@ -49,18 +49,27 @@ class EtapaFluxoController extends Controller
             'organizacao_executora_id' => 'required|exists:organizacao,id',
             'prazo_dias' => 'required|integer|min:1',
             'tipo_prazo' => 'required|in:UTEIS,CORRIDOS',
-            'tipo_etapa' => 'required|in:SEQUENCIAL,CONDICIONAL',
-            'ordem_execucao' => 'nullable|integer|min:1',
+            'descricao_customizada' => 'nullable|string',
+            'grupo_exigencia_id' => 'nullable|exists:grupo_exigencia,id',
         ]);
         
         $data = $request->all();
-        $data['is_obrigatoria'] = $request->has('is_obrigatoria');
-        $data['permite_pular'] = $request->has('permite_pular');
-        $data['permite_retorno'] = $request->has('permite_retorno');
         
-        EtapaFluxo::create($data);
+        // Gerar ordem_execucao automaticamente
+        $proximaOrdem = EtapaFluxo::where('tipo_fluxo_id', $data['tipo_fluxo_id'])
+            ->max('ordem_execucao');
+        $data['ordem_execucao'] = ($proximaOrdem ?? 0) + 1;
         
-        return redirect()->route('etapas-fluxo.index')->with('success', 'Etapa criada com sucesso!');
+        // Definir valores padrão para campos removidos da interface
+        $data['is_obrigatoria'] = true; // Padrão: etapa obrigatória
+        $data['permite_pular'] = false; // Padrão: não permite pular
+        $data['permite_retorno'] = true; // Padrão: permite retorno
+        $data['tipo_etapa'] = 'CONDICIONAL'; // Padrão: fluxo condicional
+        
+        $etapaFluxo = EtapaFluxo::create($data);
+        
+        return redirect()->route('etapas-fluxo.edit', $etapaFluxo)
+            ->with('success', 'Etapa criada com sucesso! Configure agora os status e transições.');
     }
 
     /**
@@ -119,14 +128,23 @@ class EtapaFluxoController extends Controller
             'organizacao_executora_id' => 'required|exists:organizacao,id',
             'prazo_dias' => 'required|integer|min:1',
             'tipo_prazo' => 'required|in:UTEIS,CORRIDOS',
-            'tipo_etapa' => 'required|in:SEQUENCIAL,CONDICIONAL',
-            'ordem_execucao' => 'nullable|integer|min:1',
+            'descricao_customizada' => 'nullable|string',
+            'grupo_exigencia_id' => 'nullable|exists:grupo_exigencia,id',
         ]);
         
         $data = $request->all();
-        $data['is_obrigatoria'] = $request->has('is_obrigatoria');
-        $data['permite_pular'] = $request->has('permite_pular');
-        $data['permite_retorno'] = $request->has('permite_retorno');
+        
+        // Se mudou o tipo de fluxo, recalcular ordem_execucao
+        if ($data['tipo_fluxo_id'] != $etapa_fluxo->tipo_fluxo_id) {
+            $proximaOrdem = EtapaFluxo::where('tipo_fluxo_id', $data['tipo_fluxo_id'])
+                ->where('id', '!=', $etapa_fluxo->id)
+                ->max('ordem_execucao');
+            $data['ordem_execucao'] = ($proximaOrdem ?? 0) + 1;
+        }
+        // Se não mudou tipo_fluxo, manter ordem_execucao existente
+        else {
+            unset($data['ordem_execucao']); // Não atualizar
+        }
         
         $etapa_fluxo->update($data);
         
@@ -141,9 +159,35 @@ class EtapaFluxoController extends Controller
         // Adicionar verificação de dependências se necessário
         // Ex: if ($etapa_fluxo->execucoes()->count() > 0) { ... }
 
+        $tipoFluxoId = $etapa_fluxo->tipo_fluxo_id;
+        $ordemExcluida = $etapa_fluxo->ordem_execucao;
+        
         $etapa_fluxo->delete();
+        
+        // Reordenar as etapas restantes do mesmo tipo de fluxo
+        EtapaFluxo::where('tipo_fluxo_id', $tipoFluxoId)
+            ->where('ordem_execucao', '>', $ordemExcluida)
+            ->decrement('ordem_execucao');
 
         return redirect()->route('etapas-fluxo.index')
-            ->with('success', 'Etapa de fluxo excluída com sucesso!');
+            ->with('success', 'Etapa de fluxo excluída com sucesso! As demais etapas foram reordenadas automaticamente.');
+    }
+
+    /**
+     * Reordena automaticamente todas as etapas de um tipo de fluxo
+     */
+    public function reordenarEtapas($tipoFluxoId)
+    {
+        $etapas = EtapaFluxo::where('tipo_fluxo_id', $tipoFluxoId)
+            ->orderBy('ordem_execucao')
+            ->get();
+            
+        $ordem = 1;
+        foreach ($etapas as $etapa) {
+            $etapa->update(['ordem_execucao' => $ordem]);
+            $ordem++;
+        }
+        
+        return response()->json(['success' => true, 'message' => 'Etapas reordenadas com sucesso!']);
     }
 }

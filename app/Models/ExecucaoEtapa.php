@@ -173,11 +173,9 @@ class ExecucaoEtapa extends Model
             return false;
         }
 
-        // NOVA ABORDAGEM: Flexibilidade total
-        // Deve ser da organização executora OU solicitante (ambas podem enviar documentos)
-        // Apenas etapas canceladas não permitem envio
-        return ($user->organizacao_id === $this->etapaFluxo->organizacao_executora_id || 
-                $user->organizacao_id === $this->etapaFluxo->organizacao_solicitante_id) &&
+        // CORREÇÃO: Apenas organização EXECUTORA pode enviar documentos
+        // Organização solicitante apenas aprova/reprova
+        return $user->organizacao_id === $this->etapaFluxo->organizacao_executora_id &&
                $this->status->codigo !== 'CANCELADO';
     }
 

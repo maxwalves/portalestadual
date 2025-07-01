@@ -31,26 +31,34 @@
         @if($statusInteracao['pode_visualizar'] && !$statusInteracao['pode_interagir'])
             <div class="row">
                 <div class="col-12">
-                    <div class="alert alert-info alert-dismissible">
+                    @php
+                        // Verificar se é problema de etapa não ativa
+                        $isEtapaInativa = strpos($statusInteracao['motivo_bloqueio'] ?? '', 'não está ativa no momento') !== false;
+                    @endphp
+                    
+                    <div class="alert alert-elegante alert-dismissible {{ $isEtapaInativa ? 'alert-etapa-inativa' : 'alert-visualizacao' }}">
                         <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                        <h5><i class="icon fas fa-info-circle"></i> Modo Visualização</h5>
-                        
-                        <p class="mb-1">
-                            Você pode visualizar esta etapa, mas não pode interagir com ela no momento.
-                        </p>
-                        
-                        @if($statusInteracao['motivo_bloqueio'])
-                            <p class="mb-1">
-                                <strong>Motivo:</strong> {{ $statusInteracao['motivo_bloqueio'] }}
-                            </p>
-                        @endif
-                        
-                        @if($statusInteracao['organizacao_responsavel_atual'])
-                            <p class="mb-0">
-                                <strong>Organização responsável atual:</strong> 
-                                <span class="badge badge-primary">{{ $statusInteracao['organizacao_responsavel_atual'] }}</span>
-                            </p>
-                        @endif
+                        <div class="alert-content">
+                            <div class="alert-header">
+                                <div class="alert-icon">
+                                    <i class="fas fa-{{ $isEtapaInativa ? 'pause-circle' : 'eye' }}"></i>
+                                </div>
+                                <div class="alert-title">
+                                    {{ $isEtapaInativa ? 'Visualização' : 'Modo Visualização' }}
+                                    @if($statusInteracao['organizacao_responsavel_atual'])
+                                        <span class="badge badge-status ml-2">{{ $statusInteracao['organizacao_responsavel_atual'] }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                            
+                            <div class="alert-message">
+                                @if($isEtapaInativa)
+                                    Esta etapa não está ativa no momento. {{ $statusInteracao['motivo_bloqueio'] }}
+                                @else
+                                    {{ $statusInteracao['motivo_bloqueio'] ?? 'Você pode visualizar esta etapa, mas não pode interagir com ela no momento.' }}
+                                @endif
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -294,12 +302,16 @@
                                                                 @endif
                                                             @endif
                                                             
-                                                            @if($permissoes['pode_enviar_documento'])
-                                                                <button class="btn btn-primary btn-sm" 
-                                                                        onclick="enviarDocumento({{ $template->tipo_documento_id }})" title="Enviar">
-                                                                    <i class="fas fa-upload"></i>
-                                                                </button>
-                                                            @endif
+                                                                                                        @if($permissoes['pode_enviar_documento'])
+                                                <button class="btn btn-primary btn-sm" 
+                                                        onclick="enviarDocumento({{ $template->tipo_documento_id }})" title="Enviar">
+                                                    <i class="fas fa-upload"></i>
+                                                </button>
+                                            @elseif($statusInteracao['pode_visualizar'] && !$statusInteracao['pode_interagir'])
+                                                <span class="text-muted small" title="{{ $statusInteracao['motivo_bloqueio'] ?? 'Etapa não está ativa no momento' }}">
+                                                    <i class="fas fa-lock"></i>
+                                                </span>
+                                            @endif
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -418,13 +430,18 @@
                                                                 @endif
                                                             @endif
                                                             
-                                                            @if($permissoes['pode_enviar_documento'])
-                                                                <button class="btn btn-primary btn-elegante" 
-                                                                        onclick="enviarDocumento({{ $template->tipo_documento_id }})"
-                                                                        data-toggle="tooltip" title="{{ $ultimoDocumento ? 'Enviar Nova Versão' : 'Enviar Documento' }}">
-                                                                    <i class="fas fa-{{ $ultimoDocumento ? 'sync-alt' : 'upload' }}"></i>
-                                                                </button>
-                                                            @endif
+                                                                                                        @if($permissoes['pode_enviar_documento'])
+                                                <button class="btn btn-primary btn-elegante" 
+                                                        onclick="enviarDocumento({{ $template->tipo_documento_id }})"
+                                                        data-toggle="tooltip" title="{{ $ultimoDocumento ? 'Enviar Nova Versão' : 'Enviar Documento' }}">
+                                                    <i class="fas fa-{{ $ultimoDocumento ? 'sync-alt' : 'upload' }}"></i>
+                                                </button>
+                                            @elseif($statusInteracao['pode_visualizar'] && !$statusInteracao['pode_interagir'])
+                                                <button class="btn btn-outline-secondary btn-elegante" disabled
+                                                        data-toggle="tooltip" title="{{ $statusInteracao['motivo_bloqueio'] ?? 'Etapa não está ativa no momento' }}">
+                                                    <i class="fas fa-lock"></i>
+                                                </button>
+                                            @endif
                                                         </div>
                                                     </div>
                                                 </div>
@@ -503,6 +520,35 @@
                             <a href="{{ route('workflow.acao', $acao) }}" class="btn btn-secondary">
                                 <i class="fas fa-arrow-left"></i> Voltar ao Workflow
                             </a>
+        @else
+            <!-- Seção para quando não há execução ou não pode interagir -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card card-secondary card-outline">
+                        <div class="card-body text-center">
+                            @if($statusInteracao['pode_visualizar'] && !$statusInteracao['pode_interagir'])
+                                <div class="alert alert-elegante alert-etapa-inativa mb-3">
+                                    <div class="alert-content">
+                                        <div class="alert-header">
+                                            <div class="alert-icon">
+                                                <i class="fas fa-eye"></i>
+                                            </div>
+                                            <div class="alert-title">Visualização Apenas</div>
+                                        </div>
+                                        <div class="alert-message">
+                                            Esta etapa pode ser visualizada, mas não permite interação no momento.
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+                            
+                            <a href="{{ route('workflow.acao', $acao) }}" class="btn btn-primary">
+                                <i class="fas fa-arrow-left"></i> Voltar ao Workflow
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
                         </div>
                     </div>
                 </div>
@@ -524,6 +570,99 @@
 
 @section('css')
     <style>
+        /* ===== ALERTAS ELEGANTES ===== */
+        .alert-elegante {
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border-left: 4px solid #6c757d;
+        }
+        
+        .alert-etapa-inativa {
+            background: linear-gradient(135deg, #fef9e7 0%, #fffef7 100%);
+            border-left-color: #f39c12;
+            color: #8a6d3b;
+        }
+        
+        .alert-visualizacao {
+            background: linear-gradient(135deg, #e8f4fd 0%, #f7fbff 100%);
+            border-left-color: #3498db;
+            color: #2c5aa0;
+        }
+        
+        .alert-content {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .alert-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .alert-icon {
+            font-size: 1.1rem;
+            opacity: 0.8;
+        }
+        
+        .alert-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .alert-message {
+            font-size: 0.85rem;
+            opacity: 0.9;
+            line-height: 1.4;
+            margin-left: 2rem;
+        }
+        
+        .badge-status {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(255,255,255,0.9);
+            color: #495057;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .alert-elegante .close {
+            opacity: 0.6;
+            font-size: 1.2rem;
+            text-shadow: none;
+        }
+        
+        .alert-elegante .close:hover {
+            opacity: 0.9;
+        }
+        
+        /* Responsividade para alertas */
+        @media (max-width: 576px) {
+            .alert-elegante {
+                padding: 0.75rem 1rem;
+                margin-bottom: 1rem;
+            }
+            
+            .alert-header {
+                gap: 0.5rem;
+            }
+            
+            .alert-title {
+                font-size: 0.9rem;
+            }
+            
+            .alert-message {
+                font-size: 0.8rem;
+                margin-left: 1.5rem;
+            }
+        }
+        
         /* ===== LAYOUT ORIGINAL ===== */
         .icon-circle {
             width: 60px;

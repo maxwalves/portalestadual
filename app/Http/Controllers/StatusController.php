@@ -65,7 +65,11 @@ class StatusController extends Controller
             'is_ativo' => 'boolean',
         ]);
 
-        $status = Status::create($request->all());
+        $data = $request->all();
+        // Garantir que is_ativo seja tratado corretamente (checkbox)
+        $data['is_ativo'] = $request->has('is_ativo') ? 1 : 0;
+
+        $status = Status::create($data);
 
         return redirect()
             ->route('status.index')
@@ -121,7 +125,11 @@ class StatusController extends Controller
             'is_ativo' => 'boolean',
         ]);
 
-        $status->update($request->all());
+        $data = $request->all();
+        // Garantir que is_ativo seja tratado corretamente (checkbox)
+        $data['is_ativo'] = $request->has('is_ativo') ? 1 : 0;
+
+        $status->update($data);
 
         return redirect()
             ->route('status.index')

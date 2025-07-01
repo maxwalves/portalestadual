@@ -77,16 +77,7 @@
                                     </div>
                                 </div>
                                 <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label for="ordem_execucao">
-                                            <i class="fas fa-sort-numeric-up"></i>
-                                            Ordem de Execução
-                                        </label>
-                                        <input type="number" class="form-control @error('ordem_execucao') is-invalid @enderror" id="ordem_execucao" name="ordem_execucao" value="{{ old('ordem_execucao') }}" min="1" placeholder="Ex: 1">
-                                        @error('ordem_execucao')
-                                            <span class="invalid-feedback">{{ $message }}</span>
-                                        @enderror
-                                    </div>
+                                    <!-- Campo ordem_execucao será preenchido automaticamente -->
                                 </div>
                             </div>
                             <div class="row">
@@ -190,19 +181,7 @@
                                     </div>
                                 </div>
                                 <div class="col-md-4">
-                                    <div class="form-group">
-                                        <label for="tipo_etapa">
-                                            <i class="fas fa-random"></i>
-                                            Tipo de Etapa
-                                        </label>
-                                        <select class="form-control @error('tipo_etapa') is-invalid @enderror" id="tipo_etapa" name="tipo_etapa">
-                                            <option value="SEQUENCIAL" {{ old('tipo_etapa', 'SEQUENCIAL') == 'SEQUENCIAL' ? 'selected' : '' }}>Sequencial</option>
-                                            <option value="CONDICIONAL" {{ old('tipo_etapa') == 'CONDICIONAL' ? 'selected' : '' }}>Condicional</option>
-                                        </select>
-                                        @error('tipo_etapa')
-                                            <span class="invalid-feedback">{{ $message }}</span>
-                                        @enderror
-                                    </div>
+                                    <!-- Espaço reservado para futuras expansões -->
                                 </div>
                             </div>
                             <div class="row">
@@ -219,42 +198,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <div class="custom-control custom-switch">
-                                            <input type="checkbox" class="custom-control-input" id="is_obrigatoria" name="is_obrigatoria" value="1" {{ old('is_obrigatoria', true) ? 'checked' : '' }}>
-                                            <label class="custom-control-label" for="is_obrigatoria">
-                                                <i class="fas fa-toggle-on"></i>
-                                                Etapa obrigatória
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <div class="custom-control custom-switch">
-                                            <input type="checkbox" class="custom-control-input" id="permite_pular" name="permite_pular" value="1" {{ old('permite_pular') ? 'checked' : '' }}>
-                                            <label class="custom-control-label" for="permite_pular">
-                                                <i class="fas fa-random"></i>
-                                                Permite pular etapa
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <div class="custom-control custom-switch">
-                                            <input type="checkbox" class="custom-control-input" id="permite_retorno" name="permite_retorno" value="1" {{ old('permite_retorno', true) ? 'checked' : '' }}>
-                                            <label class="custom-control-label" for="permite_retorno">
-                                                <i class="fas fa-undo"></i>
-                                                Permite retorno
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
 
-                            </div>
                         </div>
                         <div class="card-footer">
                             <div class="row">

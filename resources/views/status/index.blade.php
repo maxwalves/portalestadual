@@ -120,12 +120,36 @@
                                 @endif
                             </td>
                             <td>
-                                <a href="{{ route('status.show', $item) }}" class="btn btn-info btn-sm">
+                                <a href="{{ route('status.show', $item) }}" class="btn btn-info btn-sm" title="Visualizar">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="{{ route('status.edit', $item) }}" class="btn btn-warning btn-sm">
+                                <a href="{{ route('status.edit', $item) }}" class="btn btn-warning btn-sm" title="Editar">
                                     <i class="fas fa-edit"></i>
                                 </a>
+                                
+                                <!-- Botão Ativar/Desativar -->
+                                <form action="{{ route('status.toggle-ativo', $item) }}" method="POST" style="display: inline;" class="toggle-form">
+                                    @csrf
+                                    <button type="submit" class="btn btn-{{ $item->is_ativo ? 'secondary' : 'success' }} btn-sm" 
+                                            title="{{ $item->is_ativo ? 'Desativar' : 'Ativar' }} Status">
+                                        <i class="fas fa-{{ $item->is_ativo ? 'pause' : 'play' }}"></i>
+                                    </button>
+                                </form>
+                                
+                                <!-- Botão Excluir (apenas se não estiver em uso) -->
+                                @if($item->execucaoEtapas()->count() == 0 && $item->transicoesCondicao()->count() == 0)
+                                <form action="{{ route('status.destroy', $item) }}" method="POST" style="display: inline;" class="delete-form">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-danger btn-sm" title="Excluir Status">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                @else
+                                <button type="button" class="btn btn-danger btn-sm" disabled title="Status em uso - não pode ser excluído">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                @endif
                             </td>
                         </tr>
                         @empty
@@ -161,19 +185,40 @@
 <script>
 $(document).ready(function() {
     // Confirmação antes de alterar status
-    $('form[action*="toggle-ativo"]').on('submit', function(e) {
+    $('.toggle-form').on('submit', function(e) {
         e.preventDefault();
         var form = this;
         var acao = $(this).find('button').attr('title');
         
         Swal.fire({
             title: 'Confirmar ação',
-            text: 'Tem certeza que deseja ' + acao.toLowerCase() + ' este status?',
+            text: 'Tem certeza que deseja ' + acao.toLowerCase() + '?',
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#3085d6',
             cancelButtonColor: '#d33',
             confirmButtonText: 'Sim, confirmar!',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    });
+    
+    // Confirmação antes de excluir
+    $('.delete-form').on('submit', function(e) {
+        e.preventDefault();
+        var form = this;
+        
+        Swal.fire({
+            title: 'Excluir Status',
+            text: 'Esta ação não pode ser desfeita! Tem certeza que deseja excluir este status?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sim, excluir!',
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {

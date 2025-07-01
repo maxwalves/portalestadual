@@ -110,7 +110,8 @@ class ExecucaoEtapaController extends Controller
         // === NOVA FUNCIONALIDADE: Calcular acessibilidade de cada etapa ===
         $etapasAcessiveis = collect();
         foreach ($etapasFluxo as $etapaFluxo) {
-            $podeAcessar = $this->podeAcessarEtapa($acao, $etapaFluxo);
+            // NOVA LÓGICA: Usar podeInteragirComEtapa para determinar se pode EDITAR
+            $podeInteragir = $this->podeInteragirComEtapa($acao, $etapaFluxo);
             $podeVisualizar = $this->podeVisualizarEtapa($acao, $etapaFluxo);
             $execucao = $execucoes->get($etapaFluxo->id);
             
@@ -125,10 +126,10 @@ class ExecucaoEtapaController extends Controller
             }
             
             $etapasAcessiveis->put($etapaFluxo->id, [
-                'pode_acessar' => $podeAcessar,
+                'pode_acessar' => $podeInteragir,  // MUDANÇA: Agora usa podeInteragirComEtapa
                 'pode_ver_detalhes' => $podeVisualizar,
                 'pode_ver_historico' => $podeVerHistorico,
-                'motivo_bloqueio' => !$podeAcessar ? $this->getMotivoBloqueioEtapa($acao, $etapaFluxo) : null
+                'motivo_bloqueio' => !$podeInteragir ? $this->getMotivoBloqueioEtapa($acao, $etapaFluxo) : null
             ]);
         }
 
@@ -222,9 +223,20 @@ class ExecucaoEtapaController extends Controller
         
         // Se pode visualizar mas não pode interagir, explicar o motivo específico
         if ($statusInteracao['pode_visualizar'] && !$statusInteracao['pode_interagir']) {
-            // NOVA ABORDAGEM: Não verificar etapas anteriores - sistema flexível
-            {
-                // Verificar se o usuário não pertence às organizações desta etapa específica
+            // Verificar primeiro se esta etapa é a atual no fluxo
+            $etapaAtualDoFluxo = $this->determinarEtapaAtual($acao);
+            
+            if (!$etapaAtualDoFluxo || $etapaAtualDoFluxo->id !== $etapaFluxo->id) {
+                // Esta não é a etapa atual do fluxo
+                if ($etapaAtualDoFluxo) {
+                    $statusInteracao['motivo_bloqueio'] = "Esta etapa não está ativa no momento. A etapa atual do fluxo é: {$etapaAtualDoFluxo->nome_etapa}";
+                    $statusInteracao['organizacao_responsavel_atual'] = "Aguardando etapa: {$etapaAtualDoFluxo->nome_etapa}";
+                } else {
+                    $statusInteracao['motivo_bloqueio'] = "O fluxo de trabalho foi concluído.";
+                    $statusInteracao['organizacao_responsavel_atual'] = "Fluxo concluído";
+                }
+            } else {
+                // Esta é a etapa atual, verificar se o usuário não pertence às organizações desta etapa específica
                 $userOrgId = $user->organizacao_id;
                 $pertenceEtapa = ($userOrgId === $etapaFluxo->organizacao_solicitante_id) || 
                                 ($userOrgId === $etapaFluxo->organizacao_executora_id);
@@ -968,8 +980,16 @@ class ExecucaoEtapaController extends Controller
 
     // ===== MÉTODOS AUXILIARES =====
 
-    private function determinarEtapaAtual(Acao $acao, $execucoes)
+    private function determinarEtapaAtual(Acao $acao, $execucoes = null)
     {
+        // Se não foi passado execuções, buscar do banco
+        if ($execucoes === null || $execucoes->isEmpty()) {
+            $execucoes = ExecucaoEtapa::where('acao_id', $acao->id)
+                ->with(['status'])
+                ->get()
+                ->keyBy('etapa_fluxo_id');
+        }
+
         // Buscar etapas em ordem de execução
         $etapasFluxo = EtapaFluxo::where('tipo_fluxo_id', $acao->tipo_fluxo_id)
             ->orderBy('ordem_execucao')
@@ -1090,31 +1110,58 @@ class ExecucaoEtapaController extends Controller
     {
         $user = Auth::user();
         
-        // Admins sempre podem
-        if ($user->hasRole(['admin', 'admin_paranacidade'])) {
-            return true;
-        }
-        
-        $userOrgId = $user->organizacao_id;
+        // ===== REGRA UNIVERSAL: APENAS A ETAPA ATUAL PERMITE UPLOAD =====
+        // Esta regra se aplica a TODOS os usuários, incluindo administradores
         $etapaFluxo = $execucao->etapaFluxo;
+        $etapaAtualDoFluxo = $this->determinarEtapaAtual($execucao->acao);
         
-        // Verificar se o usuário pertence à organização solicitante OU executora da etapa
-        $pertenceOrganizacao = ($userOrgId === $etapaFluxo->organizacao_solicitante_id) || 
-                              ($userOrgId === $etapaFluxo->organizacao_executora_id);
-        
-        if (!$pertenceOrganizacao) {
-            \Log::warning('Usuário não pertence às organizações da etapa para envio de documento', [
+        if (!$etapaAtualDoFluxo || $etapaAtualDoFluxo->id !== $etapaFluxo->id) {
+            \Log::warning('Envio de documento negado - etapa não está ativa no fluxo (regra universal)', [
                 'user_id' => $user->id,
-                'user_org_id' => $userOrgId,
-                'org_solicitante_id' => $etapaFluxo->organizacao_solicitante_id,
-                'org_executora_id' => $etapaFluxo->organizacao_executora_id,
-                'execucao_id' => $execucao->id
+                'user_role' => $user->roles->pluck('name')->toArray(),
+                'execucao_id' => $execucao->id,
+                'etapa_solicitada_id' => $etapaFluxo->id,
+                'etapa_solicitada_nome' => $etapaFluxo->nome_etapa,
+                'etapa_atual_id' => $etapaAtualDoFluxo ? $etapaAtualDoFluxo->id : null,
+                'etapa_atual_nome' => $etapaAtualDoFluxo ? $etapaAtualDoFluxo->nome_etapa : 'Nenhuma',
+                'motivo' => 'Apenas etapa atual permite upload - regra universal'
             ]);
             return false;
         }
         
-        // NOVA ABORDAGEM: Permitir envio de documento independente do status
-        // O fluxo é controlado pelas transições, não por restrições de documento
+        // ===== VERIFICAÇÃO DE ORGANIZAÇÃO =====
+        $userOrgId = $user->organizacao_id;
+        
+        // CORREÇÃO: Apenas a organização EXECUTORA pode enviar documentos
+        // Admins NÃO podem enviar documentos - apenas aprovar/reprovar
+        $pertenceOrganizacaoExecutora = ($userOrgId === $etapaFluxo->organizacao_executora_id);
+        
+        // Verificar se é admin (mas sem permissão para envio)
+        if ($user->hasRole(['admin', 'admin_paranacidade'])) {
+            \Log::warning('Upload negado - admin não pode enviar documentos', [
+                'user_id' => $user->id,
+                'execucao_id' => $execucao->id,
+                'etapa_nome' => $etapaFluxo->nome_etapa,
+                'org_executora_id' => $etapaFluxo->organizacao_executora_id,
+                'org_executora_nome' => $etapaFluxo->organizacaoExecutora->nome ?? 'N/A',
+                'motivo' => 'Admin pode apenas aprovar/reprovar - não enviar documentos'
+            ]);
+            return false;
+        }
+        
+        if (!$pertenceOrganizacaoExecutora) {
+            \Log::warning('Usuário não pertence à organização EXECUTORA da etapa para envio de documento', [
+                'user_id' => $user->id,
+                'user_org_id' => $userOrgId,
+                'user_org_nome' => $user->organizacao->nome ?? 'N/A',
+                'org_executora_id' => $etapaFluxo->organizacao_executora_id,
+                'org_executora_nome' => $etapaFluxo->organizacaoExecutora->nome ?? 'N/A',
+                'execucao_id' => $execucao->id,
+                'motivo' => 'Apenas organização executora pode enviar documentos'
+            ]);
+            return false;
+        }
+        
         // Apenas etapas CANCELADAS não permitem envio
         if ($execucao->status->codigo === 'CANCELADO') {
             \Log::warning('Etapa cancelada não permite envio de documento', [
@@ -1124,12 +1171,15 @@ class ExecucaoEtapaController extends Controller
             return false;
         }
         
-        \Log::info('Permissão para enviar documento concedida', [
+        \Log::info('Permissão para enviar documento concedida - organização executora na etapa atual', [
             'user_id' => $user->id,
             'user_org_id' => $userOrgId,
+            'user_org_nome' => $user->organizacao->nome ?? 'N/A',
             'execucao_id' => $execucao->id,
-            'is_solicitante' => $userOrgId === $etapaFluxo->organizacao_solicitante_id,
-            'is_executora' => $userOrgId === $etapaFluxo->organizacao_executora_id
+            'org_executora_id' => $etapaFluxo->organizacao_executora_id,
+            'org_executora_nome' => $etapaFluxo->organizacaoExecutora->nome ?? 'N/A',
+            'etapa_ativa' => true,
+            'motivo' => 'Usuário da organização executora pode enviar documentos'
         ]);
         
         return true;
@@ -1138,10 +1188,55 @@ class ExecucaoEtapaController extends Controller
     private function podeAprovarDocumento(Documento $documento): bool
     {
         $user = Auth::user();
+        $execucao = $documento->execucaoEtapa;
+        $etapaFluxo = $execucao->etapaFluxo;
         
-        // Deve ser da organização solicitante e documento deve estar pendente ou em análise
-        return $user->organizacao_id === $documento->execucaoEtapa->etapaFluxo->organizacao_solicitante_id &&
-               in_array($documento->status_documento, [Documento::STATUS_PENDENTE, Documento::STATUS_EM_ANALISE]);
+        // ===== REGRA UNIVERSAL: APENAS A ETAPA ATUAL PERMITE APROVAÇÃO =====
+        // Esta regra se aplica a TODOS os usuários, incluindo administradores
+        $etapaAtualDoFluxo = $this->determinarEtapaAtual($execucao->acao);
+        
+        if (!$etapaAtualDoFluxo || $etapaAtualDoFluxo->id !== $etapaFluxo->id) {
+            \Log::warning('Aprovação de documento negada - etapa não está ativa no fluxo (regra universal)', [
+                'user_id' => $user->id,
+                'user_role' => $user->roles->pluck('name')->toArray(),
+                'documento_id' => $documento->id,
+                'etapa_solicitada_id' => $etapaFluxo->id,
+                'etapa_solicitada_nome' => $etapaFluxo->nome_etapa,
+                'etapa_atual_id' => $etapaAtualDoFluxo ? $etapaAtualDoFluxo->id : null,
+                'etapa_atual_nome' => $etapaAtualDoFluxo ? $etapaAtualDoFluxo->nome_etapa : 'Nenhuma',
+                'motivo' => 'Apenas etapa atual permite aprovacao - regra universal'
+            ]);
+            return false;
+        }
+        
+        // ===== VERIFICAÇÃO DE ORGANIZAÇÃO =====
+        // Admins podem aprovar documentos na etapa atual de qualquer organização
+        if ($user->hasRole(['admin', 'admin_paranacidade'])) {
+            // Documento deve estar pendente ou em análise
+            if (!in_array($documento->status_documento, [Documento::STATUS_PENDENTE, Documento::STATUS_EM_ANALISE])) {
+                return false;
+            }
+            
+            \Log::info('Aprovação permitida - admin na etapa atual', [
+                'user_id' => $user->id,
+                'documento_id' => $documento->id,
+                'etapa_nome' => $etapaFluxo->nome_etapa,
+                'motivo' => 'Admin pode aprovar documento na etapa atual'
+            ]);
+            return true;
+        }
+        
+        // Deve ser da organização solicitante
+        if ($user->organizacao_id !== $etapaFluxo->organizacao_solicitante_id) {
+            return false;
+        }
+        
+        // Documento deve estar pendente ou em análise
+        if (!in_array($documento->status_documento, [Documento::STATUS_PENDENTE, Documento::STATUS_EM_ANALISE])) {
+            return false;
+        }
+        
+        return true;
     }
 
     private function podeConcluirEtapa(ExecucaoEtapa $execucao): bool
@@ -1301,11 +1396,40 @@ class ExecucaoEtapaController extends Controller
                                 ->where('etapa_fluxo_id', $transicao->etapa_fluxo_destino_id)
                                 ->first();
 
-                            if (!$execucaoExistente) {
-                                $descricao = $isStatusAtual 
-                                    ? ($transicao->descricao ?? "Manter status {$status->nome} e prosseguir para {$transicao->etapaDestino->nome_etapa}")
-                                    : ($transicao->descricao ?? "Alterar status para {$status->nome} e prosseguir para {$transicao->etapaDestino->nome_etapa}");
-                                    
+                            // CORREÇÃO: Verificar se é transição de "voltar" baseada no nome do status
+                            $isTransicaoVoltar = stripos($status->nome, 'voltar') !== false || 
+                                               stripos($status->codigo, 'VOLTAR') !== false ||
+                                               stripos($transicao->descricao ?? '', 'voltar') !== false;
+
+                            // NOVA ABORDAGEM: Permitir TODAS as transições configuradas independente de já ter sido executada
+                            // Isso dá flexibilidade total para navegar no fluxo (pode voltar ou avançar)
+                            $permitirTransicao = true; // Flexibilidade total
+
+                            if ($permitirTransicao) {
+                                $descricao = '';
+                                $tipoOperacao = 'iniciar_etapa';
+                                
+                                if ($execucaoExistente) {
+                                    // Etapa já foi executada - será reativada
+                                    if ($isTransicaoVoltar) {
+                                        $descricao = $isStatusAtual 
+                                            ? ($transicao->descricao ?? "Manter status {$status->nome} e retornar para {$transicao->etapaDestino->nome_etapa}")
+                                            : ($transicao->descricao ?? "Alterar status para {$status->nome} e retornar para {$transicao->etapaDestino->nome_etapa}");
+                                        $tipoOperacao = 'reativar_etapa';
+                                    } else {
+                                        $descricao = $isStatusAtual 
+                                            ? ($transicao->descricao ?? "Manter status {$status->nome} e reativar etapa {$transicao->etapaDestino->nome_etapa}")
+                                            : ($transicao->descricao ?? "Alterar status para {$status->nome} e reativar etapa {$transicao->etapaDestino->nome_etapa}");
+                                        $tipoOperacao = 'reativar_etapa';
+                                    }
+                                } else {
+                                    // Etapa ainda não foi executada - criação normal
+                                    $descricao = $isStatusAtual 
+                                        ? ($transicao->descricao ?? "Manter status {$status->nome} e prosseguir para {$transicao->etapaDestino->nome_etapa}")
+                                        : ($transicao->descricao ?? "Alterar status para {$status->nome} e prosseguir para {$transicao->etapaDestino->nome_etapa}");
+                                    $tipoOperacao = 'iniciar_etapa';
+                                }
+                                
                                 $opcoesDisponiveis[] = [
                                     'transicao_id' => $transicao->id,
                                     'status_id' => $status->id,
@@ -1318,9 +1442,22 @@ class ExecucaoEtapaController extends Controller
                                     'prioridade' => $transicao->prioridade,
                                     'organizacao_executora' => $transicao->etapaDestino->organizacaoExecutora->nome,
                                     'requer_justificativa' => $status->pivot->requer_justificativa ?? false,
-                                    'tipo_operacao' => 'iniciar_etapa', // Inicia nova etapa
-                                    'is_status_atual' => $isStatusAtual
+                                    'tipo_operacao' => $tipoOperacao,
+                                    'is_status_atual' => $isStatusAtual,
+                                    'is_voltar' => $isTransicaoVoltar,
+                                    'etapa_ja_executada' => !is_null($execucaoExistente),
+                                    'flexibilidade_total' => true
                                 ];
+                                
+                                \Log::info('Transição adicionada às opções (flexibilidade total)', [
+                                    'transicao_id' => $transicao->id,
+                                    'status_nome' => $status->nome,
+                                    'etapa_destino' => $transicao->etapaDestino->nome_etapa,
+                                    'is_voltar' => $isTransicaoVoltar,
+                                    'etapa_ja_executada' => !is_null($execucaoExistente),
+                                    'tipo_operacao' => $tipoOperacao,
+                                    'permite_reativacao' => true
+                                ]);
                             }
                         }
                     }
@@ -1419,7 +1556,7 @@ class ExecucaoEtapaController extends Controller
             'transicao_id' => 'nullable|exists:transicao_etapas,id',
             'status_id' => 'required|exists:status,id',
             'etapa_destino_id' => 'nullable|exists:etapa_fluxo,id',
-            'tipo_operacao' => 'required|in:alterar_status,iniciar_etapa,manter_status',
+            'tipo_operacao' => 'required|in:alterar_status,iniciar_etapa,manter_status,voltar_etapa,reativar_etapa',
             'observacoes' => 'nullable|string|max:1000'
         ]);
 
@@ -1451,7 +1588,7 @@ class ExecucaoEtapaController extends Controller
             
             // Buscar etapa destino apenas se for para iniciar nova etapa
             $etapaDestino = null;
-            if ($request->tipo_operacao === 'iniciar_etapa' && $request->etapa_destino_id) {
+            if (in_array($request->tipo_operacao, ['iniciar_etapa', 'voltar_etapa', 'reativar_etapa']) && $request->etapa_destino_id) {
                 $etapaDestino = EtapaFluxo::with('organizacaoExecutora')->findOrFail($request->etapa_destino_id);
             }
 
@@ -1475,11 +1612,33 @@ class ExecucaoEtapaController extends Controller
                     ->where('etapa_fluxo_id', $etapaDestino->id)
                     ->first();
 
-                if ($execucaoExistente) {
+                // CORREÇÃO: Verificar se é transição de "voltar"
+                $isTransicaoVoltar = false;
+                if ($request->tipo_operacao === 'voltar_etapa' || 
+                    $request->tipo_operacao === 'reativar_etapa' ||
+                    ($novoStatus && (stripos($novoStatus->nome, 'voltar') !== false || stripos($novoStatus->codigo, 'VOLTAR') !== false))) {
+                    $isTransicaoVoltar = true;
+                }
+
+                // Se já existe execução E não é transição de voltar, rejeitar
+                if ($execucaoExistente && !$isTransicaoVoltar) {
                     return response()->json([
                         'success' => false,
                         'message' => 'A etapa destino já foi iniciada'
                     ], 400);
+                }
+
+                // Se é transição de voltar e já existe execução, vamos REATIVAR ao invés de criar nova
+                if ($execucaoExistente && $isTransicaoVoltar) {
+                    \Log::info('Reativando etapa existente através de transição de voltar', [
+                        'execucao_origem_id' => $execucao->id,
+                        'execucao_destino_id' => $execucaoExistente->id,
+                        'user_id' => $user->id,
+                        'status_escolhido' => $novoStatus->nome
+                    ]);
+                    
+                    // Marcar a flag para reativação
+                    $request->merge(['reativar_execucao_existente' => $execucaoExistente->id]);
                 }
             }
 
@@ -1489,8 +1648,8 @@ class ExecucaoEtapaController extends Controller
             $statusAnterior = $execucao->status;
             $datasConclusao = [];
             
-            if ($request->tipo_operacao === 'iniciar_etapa') {
-                // Se for iniciar nova etapa, marcar como concluída
+            if (in_array($request->tipo_operacao, ['iniciar_etapa', 'voltar_etapa', 'reativar_etapa'])) {
+                // Se for iniciar nova etapa ou voltar, marcar como concluída
                 $datasConclusao['data_conclusao'] = now();
             }
             
@@ -1507,33 +1666,64 @@ class ExecucaoEtapaController extends Controller
             $execucao->update(array_merge($dadosAtualizacao, $datasConclusao));
 
             $novaExecucao = null;
+            $execucaoReativada = null;
 
-            // 2. Criar nova execução apenas se for para iniciar nova etapa
-            if ($request->tipo_operacao === 'iniciar_etapa' && $etapaDestino) {
-                $statusPendente = Status::where('codigo', 'PENDENTE')->first();
+            // 2. Criar nova execução ou reativar existente
+            if (in_array($request->tipo_operacao, ['iniciar_etapa', 'voltar_etapa', 'reativar_etapa']) && $etapaDestino) {
                 
-                $motivoTransicao = $transicao 
-                    ? "Transição escolhida pelo usuário: {$transicao->descricao}"
-                    : "Transição sequencial escolhida pelo usuário para: {$etapaDestino->nome_etapa}";
-                
-                $novaExecucao = ExecucaoEtapa::create([
-                    'acao_id' => $execucao->acao_id,
-                    'etapa_fluxo_id' => $etapaDestino->id,
-                    'status_id' => $statusPendente->id,
-                    'data_inicio' => now(),
-                    'data_prazo' => $etapaDestino->calcularDataPrazo(),
-                    'etapa_anterior_id' => $execucao->id,
-                    'motivo_transicao' => $motivoTransicao,
-                    'created_by' => $user->id
-                ]);
+                // Verificar se deve reativar execução existente (transições de voltar)
+                if ($request->has('reativar_execucao_existente')) {
+                    $execucaoReativada = ExecucaoEtapa::findOrFail($request->reativar_execucao_existente);
+                    
+                    // Reativar a execução existente
+                    $statusPendente = Status::where('codigo', 'PENDENTE')->first();
+                    $execucaoReativada->update([
+                        'status_id' => $statusPendente->id,
+                        'data_inicio' => now(),
+                        'data_prazo' => $etapaDestino->calcularDataPrazo(),
+                        'data_conclusao' => null, // Limpar conclusão anterior
+                        'etapa_anterior_id' => $execucao->id, // Atualizar referência
+                        'motivo_transicao' => $transicao 
+                            ? "REATIVAÇÃO - Transição de voltar: {$transicao->descricao}"
+                            : "REATIVAÇÃO - Retorno para etapa: {$etapaDestino->nome_etapa}",
+                        'updated_by' => $user->id
+                    ]);
+                    
+                    \Log::info('Etapa reativada com sucesso', [
+                        'execucao_reativada_id' => $execucaoReativada->id,
+                        'execucao_origem_id' => $execucao->id,
+                        'etapa_destino' => $etapaDestino->nome_etapa,
+                        'user_id' => $user->id
+                    ]);
+                    
+                } else {
+                    // Criar nova execução (fluxo normal)
+                    $statusPendente = Status::where('codigo', 'PENDENTE')->first();
+                    
+                    $motivoTransicao = $transicao 
+                        ? "Transição escolhida pelo usuário: {$transicao->descricao}"
+                        : "Transição sequencial escolhida pelo usuário para: {$etapaDestino->nome_etapa}";
+                    
+                    $novaExecucao = ExecucaoEtapa::create([
+                        'acao_id' => $execucao->acao_id,
+                        'etapa_fluxo_id' => $etapaDestino->id,
+                        'status_id' => $statusPendente->id,
+                        'data_inicio' => now(),
+                        'data_prazo' => $etapaDestino->calcularDataPrazo(),
+                        'etapa_anterior_id' => $execucao->id,
+                        'motivo_transicao' => $motivoTransicao,
+                        'created_by' => $user->id
+                    ]);
+                }
             }
 
             // 3. Registrar no histórico da etapa atual
-            $acaoHistorico = $request->tipo_operacao === 'iniciar_etapa' ? 'CONCLUSAO_ETAPA' : 
+            $acaoHistorico = in_array($request->tipo_operacao, ['iniciar_etapa', 'voltar_etapa', 'reativar_etapa']) ? 'CONCLUSAO_ETAPA' : 
                            ($request->tipo_operacao === 'manter_status' ? 'REPROCESSAMENTO' : 'ALTERACAO_STATUS');
             
             $descricaoAcao = match($request->tipo_operacao) {
                 'iniciar_etapa' => "Etapa concluída com status '{$novoStatus->nome}'" . ($etapaDestino ? " e direcionada para: {$etapaDestino->nome_etapa}" : ""),
+                'voltar_etapa', 'reativar_etapa' => "Etapa concluída com status '{$novoStatus->nome}'" . ($etapaDestino ? " e retornada para: {$etapaDestino->nome_etapa}" : ""),
                 'manter_status' => "Status mantido como '{$statusAnterior->nome}' para reprocessamento",
                 'alterar_status' => "Status alterado para '{$novoStatus->nome}'"
             };
@@ -1551,6 +1741,11 @@ class ExecucaoEtapaController extends Controller
             
             if ($novaExecucao) {
                 $dadosAlterados['nova_execucao_id'] = $novaExecucao->id;
+            }
+            
+            if ($execucaoReativada) {
+                $dadosAlterados['execucao_reativada_id'] = $execucaoReativada->id;
+                $dadosAlterados['tipo_transicao'] = 'reativacao';
             }
 
             HistoricoEtapa::create([
@@ -1585,6 +1780,26 @@ class ExecucaoEtapaController extends Controller
                 ]);
             }
 
+            // 5. Registrar no histórico da etapa reativada (se aplicável)
+            if ($execucaoReativada) {
+                HistoricoEtapa::create([
+                    'execucao_etapa_id' => $execucaoReativada->id,
+                    'usuario_id' => $user->id,
+                    'acao' => 'REATIVACAO_ETAPA',
+                    'descricao_acao' => "Etapa reativada através de transição de voltar da etapa: {$execucao->etapaFluxo->nome_etapa}",
+                    'observacao' => $transicao ? "Transição de voltar executada: {$transicao->descricao}" : "Retorno para etapa anterior",
+                    'dados_alterados' => json_encode([
+                        'etapa_origem' => $execucao->etapaFluxo->nome_etapa,
+                        'transicao_id' => $transicao ? $transicao->id : null,
+                        'usuario_decisao' => $user->name,
+                        'status_origem' => $novoStatus->nome,
+                        'tipo_operacao' => 'reativacao'
+                    ]),
+                    'ip_usuario' => request()->ip(),
+                    'user_agent' => request()->userAgent()
+                ]);
+            }
+
             DB::commit();
 
             $responseData = [
@@ -1592,13 +1807,27 @@ class ExecucaoEtapaController extends Controller
                 'tipo_operacao' => $request->tipo_operacao
             ];
 
-            if ($request->tipo_operacao === 'iniciar_etapa' && $novaExecucao) {
-                $responseData['message'] = "Etapa concluída com sucesso! Próxima etapa '{$etapaDestino->nome_etapa}' foi iniciada.";
-                $responseData['proxima_etapa'] = [
-                    'id' => $novaExecucao->id,
-                    'nome' => $etapaDestino->nome_etapa,
-                    'organizacao_executora' => $etapaDestino->organizacaoExecutora->nome
-                ];
+            if (in_array($request->tipo_operacao, ['iniciar_etapa', 'voltar_etapa', 'reativar_etapa']) && ($novaExecucao || $execucaoReativada)) {
+                if ($execucaoReativada) {
+                    $responseData['message'] = "Etapa concluída com sucesso! Etapa '{$etapaDestino->nome_etapa}' foi reativada.";
+                    $responseData['etapa_reativada'] = [
+                        'id' => $execucaoReativada->id,
+                        'nome' => $etapaDestino->nome_etapa,
+                        'organizacao_executora' => $etapaDestino->organizacaoExecutora->nome,
+                        'tipo' => 'reativacao'
+                    ];
+                } else {
+                    $mensagem = in_array($request->tipo_operacao, ['voltar_etapa', 'reativar_etapa']) 
+                        ? "Etapa concluída com sucesso! Retornando para etapa '{$etapaDestino->nome_etapa}'."
+                        : "Etapa concluída com sucesso! Próxima etapa '{$etapaDestino->nome_etapa}' foi iniciada.";
+                    
+                    $responseData['message'] = $mensagem;
+                    $responseData['proxima_etapa'] = [
+                        'id' => $novaExecucao->id,
+                        'nome' => $etapaDestino->nome_etapa,
+                        'organizacao_executora' => $etapaDestino->organizacaoExecutora->nome
+                    ];
+                }
             } else if ($request->tipo_operacao === 'manter_status') {
                 $responseData['message'] = "Status mantido como '{$statusAnterior->nome}' para reprocessamento!";
                 $responseData['status_atual'] = [
@@ -1695,13 +1924,50 @@ class ExecucaoEtapaController extends Controller
     {
         $user = Auth::user();
         
-        // Admins sempre podem
-        if ($user->hasRole(['admin', 'admin_paranacidade'])) {
-            return true;
+        // ===== REGRA UNIVERSAL: APENAS A ETAPA ATUAL PERMITE ALTERAÇÃO DE STATUS =====
+        // Esta regra se aplica a TODOS os usuários, incluindo administradores
+        $etapaFluxo = $execucao->etapaFluxo;
+        $etapaAtualDoFluxo = $this->determinarEtapaAtual($execucao->acao);
+        
+        if (!$etapaAtualDoFluxo || $etapaAtualDoFluxo->id !== $etapaFluxo->id) {
+            \Log::warning('Alteração de status negada - etapa não está ativa no fluxo (regra universal)', [
+                'user_id' => $user->id,
+                'user_role' => $user->roles->pluck('name')->toArray(),
+                'execucao_id' => $execucao->id,
+                'etapa_solicitada_id' => $etapaFluxo->id,
+                'etapa_solicitada_nome' => $etapaFluxo->nome_etapa,
+                'etapa_atual_id' => $etapaAtualDoFluxo ? $etapaAtualDoFluxo->id : null,
+                'etapa_atual_nome' => $etapaAtualDoFluxo ? $etapaAtualDoFluxo->nome_etapa : 'Nenhuma',
+                'motivo' => 'Apenas etapa atual permite alteracao de status - regra universal'
+            ]);
+            return false;
         }
         
+        // ===== VERIFICAÇÃO DE ORGANIZAÇÃO =====
         $userOrgId = $user->organizacao_id;
-        $etapaFluxo = $execucao->etapaFluxo;
+        
+        // Admins podem alterar status da etapa atual de qualquer organização
+        if ($user->hasRole(['admin', 'admin_paranacidade'])) {
+            // Verificar se a etapa está em um status que permite alteração
+            $statusPermitidos = ['PENDENTE', 'EM_ANALISE', 'DEVOLVIDO'];
+            if (!in_array($execucao->status->codigo, $statusPermitidos)) {
+                \Log::warning('Status da etapa não permite alteração', [
+                    'execucao_id' => $execucao->id,
+                    'status_atual' => $execucao->status->codigo,
+                    'status_permitidos' => $statusPermitidos
+                ]);
+                return false;
+            }
+            
+            \Log::info('Alteração de status permitida - admin na etapa atual', [
+                'user_id' => $user->id,
+                'execucao_id' => $execucao->id,
+                'etapa_nome' => $etapaFluxo->nome_etapa,
+                'status_atual' => $execucao->status->codigo,
+                'motivo' => 'Admin pode alterar status na etapa atual'
+            ]);
+            return true;
+        }
         
         // Verificar se o usuário pertence à organização solicitante OU executora da etapa
         $pertenceOrganizacao = ($userOrgId === $etapaFluxo->organizacao_solicitante_id) || 
@@ -1729,7 +1995,7 @@ class ExecucaoEtapaController extends Controller
             return false;
         }
 
-        \Log::info('Permissão para alterar status concedida', [
+        \Log::info('Permissão para alterar status na etapa atual concedida', [
             'user_id' => $user->id,
             'user_org_id' => $userOrgId,
             'execucao_id' => $execucao->id,
@@ -1933,24 +2199,46 @@ class ExecucaoEtapaController extends Controller
     {
         $user = Auth::user();
         
-        // Admins do sistema e Paranacidade sempre podem interagir
-        if ($user->hasRole(['admin', 'admin_paranacidade'])) {
-            return true;
-        }
-
-        // Primeiro verificar se pode visualizar
-        if (!$this->podeVisualizarEtapa($acao, $etapaFluxo)) {
+        // ===== REGRA UNIVERSAL: APENAS A ETAPA ATUAL PERMITE EDIÇÃO =====
+        // Esta regra se aplica a TODOS os usuários, incluindo administradores
+        // para garantir a integridade do fluxo de trabalho
+        
+        $etapaAtualDoFluxo = $this->determinarEtapaAtual($acao, collect());
+        
+        if (!$etapaAtualDoFluxo || $etapaAtualDoFluxo->id !== $etapaFluxo->id) {
+            \Log::info('Interação negada - etapa não é a atual do fluxo (regra universal)', [
+                'user_id' => $user->id,
+                'user_role' => $user->roles->pluck('name')->toArray(),
+                'etapa_solicitada_id' => $etapaFluxo->id,
+                'etapa_solicitada_nome' => $etapaFluxo->nome_etapa,
+                'etapa_atual_id' => $etapaAtualDoFluxo ? $etapaAtualDoFluxo->id : null,
+                'etapa_atual_nome' => $etapaAtualDoFluxo ? $etapaAtualDoFluxo->nome_etapa : 'Nenhuma',
+                'motivo' => 'Apenas etapa atual permite edicao - regra universal'
+            ]);
             return false;
         }
 
-        // ===== VALIDAÇÃO ESPECÍFICA DE ORGANIZAÇÃO =====
-        // Verificar se o usuário pertence às organizações envolvidas NESTA etapa específica
+        // ===== VERIFICAÇÃO DE ORGANIZAÇÃO =====
+        // Agora verificar se o usuário pertence às organizações envolvidas
+        
+        // Admins de sistema podem interagir com a etapa atual de qualquer organização
+        if ($user->hasRole(['admin', 'admin_paranacidade'])) {
+            \Log::info('Interação permitida - admin em etapa atual', [
+                'user_id' => $user->id,
+                'etapa_id' => $etapaFluxo->id,
+                'etapa_nome' => $etapaFluxo->nome_etapa,
+                'motivo' => 'Admin pode interagir com etapa atual'
+            ]);
+            return true;
+        }
+
+        // Para usuários não-admin, verificar se pertence às organizações da etapa
         $userOrgId = $user->organizacao_id;
         $pertenceEtapa = ($userOrgId === $etapaFluxo->organizacao_solicitante_id) || 
                         ($userOrgId === $etapaFluxo->organizacao_executora_id);
         
         if (!$pertenceEtapa) {
-            \Log::info('Usuário não pertence às organizações desta etapa específica - interação negada', [
+            \Log::info('Usuário não pertence às organizações desta etapa - interação negada', [
                 'user_id' => $user->id,
                 'user_org_id' => $userOrgId,
                 'org_solicitante_id' => $etapaFluxo->organizacao_solicitante_id,
@@ -1961,15 +2249,23 @@ class ExecucaoEtapaController extends Controller
             return false;
         }
 
-        // NOVA ABORDAGEM: FLEXIBILIDADE TOTAL
-        // Remover validação de sequência obrigatória - cada etapa é independente
-        // O fluxo é controlado pelas transições, não por bloqueios rígidos
+        // ===== VERIFICAÇÃO FINAL DE ACESSO À AÇÃO =====
+        if (!$this->canAccessAcao($acao)) {
+            \Log::info('Usuário não tem acesso ao projeto - interação negada', [
+                'user_id' => $user->id,
+                'acao_id' => $acao->id,
+                'etapa_id' => $etapaFluxo->id,
+                'motivo' => 'Usuario nao tem acesso ao projeto'
+            ]);
+            return false;
+        }
         
-        \Log::info('Interação com etapa permitida - sistema flexível', [
+        \Log::info('Interação com etapa atual permitida', [
             'user_id' => $user->id,
             'etapa_id' => $etapaFluxo->id,
             'etapa_ordem' => $etapaFluxo->ordem_execucao,
-            'motivo' => 'Flexibilidade total - sem validação de sequência'
+            'etapa_nome' => $etapaFluxo->nome_etapa,
+            'motivo' => 'Usuario autorizado na etapa atual do fluxo'
         ]);
 
         return true;

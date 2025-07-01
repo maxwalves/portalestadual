@@ -33,14 +33,9 @@
             <div class="row">
                 <div class="col-md-6">
                     <strong>Nome:</strong> {{ $acao->nome }}<br>
-                    <strong>Código:</strong> {{ $acao->codigo_referencia ?? 'N/A' }}<br>
-                    <strong>Status:</strong> 
-                    <span class="badge badge-{{ $acao->status === 'EM_EXECUCAO' ? 'warning' : 'secondary' }}">
-                        {{ ucfirst(str_replace('_', ' ', $acao->status)) }}
-                    </span>
+                    <strong>Organização:</strong> {{ $acao->demanda->termoAdesao->organizacao->nome }}
                 </div>
                 <div class="col-md-6">
-                    <strong>Organização:</strong> {{ $acao->demanda->termoAdesao->organizacao->nome }}<br>
                     <strong>Valor Estimado:</strong> R$ {{ number_format($acao->valor_estimado ?? 0, 2, ',', '.') }}<br>
                     <strong>Execução:</strong> {{ number_format($acao->percentual_execucao ?? 0, 1) }}%
                 </div>
@@ -85,77 +80,89 @@
                                 $isEtapaAtual = $etapaAtual && $etapaAtual->id === $etapa->id;
                             @endphp
                             
-                            <!-- Separador entre etapas -->
+                            <!-- Separador compacto entre etapas -->
                             @if(!$loop->first)
-                                <div class="etapa-separador">
-                                    <div class="linha-separadora"></div>
-                                    <div class="icone-separador">
+                                <div class="etapa-separador-compacto">
+                                    <div class="linha-separadora-compacta"></div>
+                                    <div class="icone-separador-compacto">
                                         <i class="fas fa-chevron-down"></i>
                                     </div>
                                 </div>
                             @endif
                             
                             <div class="etapa-container" data-etapa-id="{{ $etapa->id }}" onclick="mostrarInfoEtapa({{ $etapa->id }})">
-                                <!-- Card Principal da Etapa -->
-                                <div class="etapa-principal">
-                                    <div class="etapa-box {{ $statusAtual ? 'status-' . strtolower($statusAtual) : 'nao-iniciada' }} {{ $isEtapaAtual ? 'etapa-atual' : '' }}">
-                                        <div class="etapa-header">
-                                            <div class="etapa-numero">
-                                                <span class="badge badge-primary">{{ $etapa->ordem_execucao ?? ($loop->iteration) }}</span>
-                                            </div>
-                                            @if($isEtapaAtual)
-                                                <div class="etapa-atual-badge">
-                                                    <span class="badge badge-success badge-atual">
-                                                        <i class="fas fa-star mr-1"></i> ATUAL
-                                                    </span>
+                                <!-- Card Principal da Etapa - VERSÃO COMPACTA -->
+                                <div class="etapa-compacta">
+                                    <div class="card etapa-card-compacta {{ $statusAtual ? 'status-' . strtolower($statusAtual) : 'nao-iniciada' }} {{ $isEtapaAtual ? 'etapa-atual' : '' }} {{ !$isEtapaAtual && $etapaAtual ? 'etapa-inativa' : '' }}">
+                                        <div class="card-body p-3">
+                                            <div class="row align-items-center">
+                                                <!-- Número e Status -->
+                                                <div class="col-2 text-center">
+                                                    <div class="etapa-numero-compacto">
+                                                        <span class="badge badge-circle badge-primary">{{ $etapa->ordem_execucao ?? ($loop->iteration) }}</span>
+                                                    </div>
+                                                    @if($isEtapaAtual)
+                                                        <div class="mt-1">
+                                                            <span class="badge badge-success badge-sm">
+                                                                <i class="fas fa-star"></i> ATUAL
+                                                            </span>
+                                                        </div>
+                                                    @endif
                                                 </div>
-                                            @endif
-                                        </div>
-                                        
-                                        <div class="etapa-nome">{{ $etapa->nome_etapa }}</div>
-                                        
-                                        <div class="etapa-organizacoes">
-                                            <div class="org-fluxo">
-                                                <span class="org-solicitante">{{ Str::limit($etapa->organizacaoSolicitante->nome, 15) }}</span>
-                                                <i class="fas fa-arrow-right mx-2"></i>
-                                                <span class="org-executora">{{ Str::limit($etapa->organizacaoExecutora->nome, 15) }}</span>
+                                                
+                                                <!-- Informações Principais -->
+                                                <div class="col-7">
+                                                    <div class="etapa-info-compacta">
+                                                        <h6 class="etapa-nome-compacta mb-1">{{ $etapa->nome_etapa }}</h6>
+                                                        <div class="org-fluxo-compacto text-muted small">
+                                                            <span class="org-solicitante">{{ Str::limit($etapa->organizacaoSolicitante->nome, 12) }}</span>
+                                                            <i class="fas fa-arrow-right mx-1"></i>
+                                                            <span class="org-executora">{{ Str::limit($etapa->organizacaoExecutora->nome, 12) }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Status e Ações -->
+                                                <div class="col-3 text-right">
+                                                    <div class="etapa-status-compacto mb-2">
+                                                        @if($execucao)
+                                                            <span class="badge badge-{{ $statusAtual === 'APROVADO' ? 'success' : ($statusAtual === 'REPROVADO' ? 'danger' : 'warning') }}">
+                                                                {{ $execucao->status->nome }}
+                                                            </span>
+                                                        @else
+                                                            <span class="badge badge-secondary">Aguardando</span>
+                                                        @endif
+                                                    </div>
+                                                    
+                                                    <!-- Ações Compactas -->
+                                                    <div class="etapa-acoes-compactas">
+                                                        @php
+                                                            $podeAcessar = $etapasAcessiveis->get($etapa->id)['pode_acessar'] ?? false;
+                                                            $podeVerDetalhes = $etapasAcessiveis->get($etapa->id)['pode_ver_detalhes'] ?? false;
+                                                            $podeVerHistorico = $etapasAcessiveis->get($etapa->id)['pode_ver_historico'] ?? false;
+                                                        @endphp
+                                                        
+                                                        <div class="btn-group-sm">
+                                                            @if($podeVerDetalhes)
+                                                                <a href="{{ route('workflow.etapa-detalhada', [$acao, $etapa]) }}" 
+                                                                   class="btn btn-xs {{ $podeAcessar ? 'btn-primary' : 'btn-outline-info' }}"
+                                                                   title="{{ $podeAcessar ? 'Acessar Etapa' : 'Visualizar Etapa' }}">
+                                                                    <i class="fas fa-{{ $podeAcessar ? 'edit' : 'eye' }}"></i>
+                                                                </a>
+                                                            @endif
+                                                            
+                                                            @if($execucao && $podeVerHistorico)
+                                                                <button type="button" class="btn btn-xs btn-outline-secondary historico-btn" 
+                                                                        data-execucao-id="{{ $execucao->id }}"
+                                                                        title="Ver Histórico"
+                                                                        onclick="event.stopPropagation(); event.preventDefault(); mostrarHistorico({{ $execucao->id }}); return false;">
+                                                                    <i class="fas fa-history"></i>
+                                                                </button>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                        
-                                        <div class="etapa-status-badge">
-                                            @if($execucao)
-                                                <span class="badge badge-lg badge-{{ $statusAtual === 'APROVADO' ? 'success' : ($statusAtual === 'REPROVADO' ? 'danger' : 'warning') }}">
-                                                    {{ $execucao->status->nome }}
-                                                </span>
-                                            @else
-                                                <span class="badge badge-lg badge-secondary">Aguardando</span>
-                                            @endif
-                                        </div>
-                                        
-                                        <!-- Ações da Etapa -->
-                                        <div class="etapa-acoes">
-                                            @php
-                                                $podeAcessar = $etapasAcessiveis->get($etapa->id)['pode_acessar'] ?? false;
-                                                $podeVerDetalhes = $etapasAcessiveis->get($etapa->id)['pode_ver_detalhes'] ?? false;
-                                                $podeVerHistorico = $etapasAcessiveis->get($etapa->id)['pode_ver_historico'] ?? false;
-                                            @endphp
-                                            
-                                            @if($podeVerDetalhes)
-                                                <a href="{{ route('workflow.etapa-detalhada', [$acao, $etapa]) }}" 
-                                                   class="btn btn-sm {{ $podeAcessar ? 'btn-primary' : 'btn-outline-info' }}">
-                                                    <i class="fas fa-{{ $podeAcessar ? 'edit' : 'eye' }}"></i>
-                                                    {{ $podeAcessar ? 'Acessar' : 'Visualizar' }}
-                                                </a>
-                                            @endif
-                                            
-                                            @if($execucao && $podeVerHistorico)
-                                                <button type="button" class="btn btn-sm btn-outline-secondary historico-btn" 
-                                                        data-execucao-id="{{ $execucao->id }}"
-                                                        onclick="event.stopPropagation(); event.preventDefault(); mostrarHistorico({{ $execucao->id }}); return false;">
-                                                    <i class="fas fa-history"></i>
-                                                    Histórico
-                                                </button>
-                                            @endif
                                         </div>
                                     </div>
                                 </div>
@@ -163,51 +170,61 @@
                                 <!-- Cards de Opções com Recuo -->
                                 @if($transicoes->count() > 0)
                                     <div class="opcoes-transicao">
-                                        <div class="opcoes-titulo">
-                                            <small class="text-muted">
-                                                <i class="fas fa-route"></i> 
-                                                Próximos passos baseados no status:
-                                            </small>
-                                        </div>
-                                        
-                                        @foreach($transicoes as $transicao)
-                                            @php
-                                                $etapaDestino = $transicao->etapaDestino;
-                                                $statusCondicao = $transicao->statusCondicao;
-                                                $execucaoDestino = $execucoes->get($etapaDestino->id);
-                                                $isAtivo = $statusAtual === $statusCondicao->codigo;
-                                            @endphp
-                                            
-                                            <div class="opcao-card {{ $isAtivo ? 'opcao-ativa' : '' }}">
-                                                <div class="opcao-condicao">
-                                                    <span class="condicao-label">Se for:</span>
-                                                    <span class="badge badge-{{ $statusCondicao->codigo === 'APROVADO' ? 'success' : ($statusCondicao->codigo === 'REPROVADO' ? 'danger' : 'warning') }}">
-                                                        {{ $statusCondicao->nome }}
-                                                    </span>
-                                                    @if($isAtivo)
-                                                        <span class="badge badge-info badge-sm ml-2">
-                                                            <i class="fas fa-arrow-right"></i> Ativo
-                                                        </span>
-                                                    @endif
-                                                </div>
-                                                
-                                                <div class="opcao-destino">
-                                                    <div class="destino-info">
-                                                        <i class="fas fa-long-arrow-alt-right text-muted mr-2"></i>
-                                                        <span class="destino-nome">{{ $etapaDestino->nome_etapa }}</span>
-                                                        <small class="destino-org text-muted">({{ $etapaDestino->organizacaoExecutora->nome }})</small>
-                                                    </div>
-                                                    
-                                                    @if($execucaoDestino)
-                                                        <span class="badge badge-xs badge-{{ $execucaoDestino->status->codigo === 'APROVADO' ? 'success' : 'warning' }}">
-                                                            {{ $execucaoDestino->status->nome }}
-                                                        </span>
-                                                    @else
-                                                        <span class="badge badge-xs badge-light">Não iniciada</span>
-                                                    @endif
+                                        <!-- Botão para expandir/colapsar opções -->
+                                        <div class="opcoes-toggle" onclick="toggleOpcoes({{ $etapa->id }})">
+                                            <div class="opcoes-titulo-toggle">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-route"></i> 
+                                                    Próximos passos ({{ $transicoes->count() }} {{ $transicoes->count() > 1 ? 'opções' : 'opção' }})
+                                                </small>
+                                                <div class="opcoes-toggle-area">
+                                                    <small class="toggle-hint text-muted">clique</small>
+                                                    <i class="fas fa-chevron-down opcoes-arrow" id="arrow-{{ $etapa->id }}"></i>
                                                 </div>
                                             </div>
-                                        @endforeach
+                                        </div>
+                                        
+                                        <!-- Container das opções (inicialmente oculto) -->
+                                        <div class="opcoes-container" id="opcoes-{{ $etapa->id }}" style="display: none;">
+                                            @foreach($transicoes as $transicao)
+                                                @php
+                                                    $etapaDestino = $transicao->etapaDestino;
+                                                    $statusCondicao = $transicao->statusCondicao;
+                                                    $execucaoDestino = $execucoes->get($etapaDestino->id);
+                                                    $isAtivo = $statusAtual === $statusCondicao->codigo;
+                                                @endphp
+                                                
+                                                <div class="opcao-card {{ $isAtivo ? 'opcao-ativa' : '' }}">
+                                                    <div class="opcao-condicao">
+                                                        <span class="condicao-label">Se for:</span>
+                                                        <span class="badge badge-{{ $statusCondicao->codigo === 'APROVADO' ? 'success' : ($statusCondicao->codigo === 'REPROVADO' ? 'danger' : 'warning') }}">
+                                                            {{ $statusCondicao->nome }}
+                                                        </span>
+                                                        @if($isAtivo)
+                                                            <span class="badge badge-info badge-sm ml-2">
+                                                                <i class="fas fa-arrow-right"></i> Ativo
+                                                            </span>
+                                                        @endif
+                                                    </div>
+                                                    
+                                                    <div class="opcao-destino">
+                                                        <div class="destino-info">
+                                                            <i class="fas fa-long-arrow-alt-right text-muted mr-2"></i>
+                                                            <span class="destino-nome">{{ $etapaDestino->nome_etapa }}</span>
+                                                            <small class="destino-org text-muted">({{ $etapaDestino->organizacaoExecutora->nome }})</small>
+                                                        </div>
+                                                        
+                                                        @if($execucaoDestino)
+                                                            <span class="badge badge-xs badge-{{ $execucaoDestino->status->codigo === 'APROVADO' ? 'success' : 'warning' }}">
+                                                                {{ $execucaoDestino->status->nome }}
+                                                            </span>
+                                                        @else
+                                                            <span class="badge badge-xs badge-light">Não iniciada</span>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
                                     </div>
                                 @else
                                     <div class="opcoes-transicao">
@@ -251,30 +268,51 @@
             <div class="row mt-3">
                 <div class="col-12">
                     <div class="legenda-fluxo">
-                        <h6 class="text-muted">Legenda:</h6>
+                        <h6 class="text-muted mb-3">Legenda:</h6>
                         <div class="row">
-                            <div class="col-md-3">
+                            <div class="col-md-2 col-sm-6 mb-2">
                                 <div class="legenda-item">
-                                    <span class="badge badge-primary"><i class="fas fa-star"></i> ATUAL</span>
-                                    <small>Etapa em execução</small>
+                                    <span class="badge badge-success"><i class="fas fa-star"></i> ATUAL</span>
+                                    <small>Etapa ativa - pode editar</small>
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <div class="legenda-item">
-                                    <i class="fas fa-arrow-right text-success"></i>
-                                    <small>Caminho ativo</small>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2 col-sm-6 mb-2">
                                 <div class="legenda-item">
                                     <span class="badge badge-success">Aprovado</span>
                                     <small>Etapa concluída</small>
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2 col-sm-6 mb-2">
+                                <div class="legenda-item">
+                                    <span class="badge badge-warning">Em Análise</span>
+                                    <small>Em processamento</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2 col-sm-6 mb-2">
                                 <div class="legenda-item">
                                     <span class="badge badge-secondary">Aguardando</span>
                                     <small>Não iniciada</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2 col-sm-6 mb-2">
+                                <div class="legenda-item">
+                                    <i class="fas fa-edit text-primary"></i>
+                                    <small>Pode editar/interagir</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2 col-sm-6 mb-2">
+                                <div class="legenda-item">
+                                    <i class="fas fa-eye text-info"></i>
+                                    <small>Apenas visualizar</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-12">
+                                <div class="alert alert-info alert-sm">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    <strong>Regra de segurança:</strong> Apenas a etapa atual do fluxo permite edição e upload de documentos. 
+                                    As demais etapas ficam em modo visualização (cores neutras) para consulta e histórico.
                                 </div>
                             </div>
                         </div>
@@ -429,29 +467,52 @@
             width: 2px;
         }
         
-        /* Responsividade */
+        /* Responsividade para Cards Compactos */
         @media (max-width: 768px) {
-            .info-compacta {
-                flex-direction: column;
-                gap: 0.5rem;
+            .etapa-card-compacta .row {
+                margin: 0;
             }
             
-            .etapa-actions {
-                justify-content: center;
-                margin-top: 0.5rem;
+            .etapa-card-compacta .col-2,
+            .etapa-card-compacta .col-7,
+            .etapa-card-compacta .col-3 {
+                padding: 0.25rem;
             }
             
-            .col-md-4.text-right {
-                text-align: center !important;
+            .etapa-nome-compacta {
+                font-size: 0.9rem;
             }
             
-            .etapa-header .d-flex {
-                flex-direction: column;
-                gap: 0.5rem;
+            .org-fluxo-compacto {
+                font-size: 0.7rem;
             }
             
-            .etapa-status {
-                text-align: center;
+            .etapa-acoes-compactas .btn-xs {
+                padding: 0.15rem 0.3rem;
+                font-size: 0.65rem;
+            }
+            
+            .badge-circle {
+                width: 24px !important;
+                height: 24px !important;
+                font-size: 0.7rem !important;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .etapa-card-compacta .col-2 {
+                flex: 0 0 20%;
+                max-width: 20%;
+            }
+            
+            .etapa-card-compacta .col-7 {
+                flex: 0 0 55%;
+                max-width: 55%;
+            }
+            
+            .etapa-card-compacta .col-3 {
+                flex: 0 0 25%;
+                max-width: 25%;
             }
         }
         
@@ -644,7 +705,7 @@
         
         /* ===== CONTAINER DA ETAPA ===== */
         .etapa-container {
-            margin-bottom: 2rem;
+            margin-bottom: 0.75rem;
             cursor: pointer;
             transition: all 0.3s ease;
         }
@@ -665,220 +726,260 @@
         
 
         
-        /* ===== CARD PRINCIPAL DA ETAPA ===== */
-        .etapa-principal {
-            margin-bottom: 1rem;
+        /* ===== CARD COMPACTO DA ETAPA ===== */
+        .etapa-compacta {
+            margin-bottom: 0.5rem;
         }
         
-        .etapa-box {
-            background: #ffffff;
+        .etapa-card-compacta {
             border: 2px solid #dee2e6;
-            border-radius: 12px;
-            padding: 1.25rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            background: #ffffff;
         }
         
-        .etapa-box:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        .etapa-card-compacta:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 12px rgba(0,0,0,0.15);
             border-color: #007bff;
         }
         
-        .etapa-box.etapa-atual {
+        .etapa-card-compacta.etapa-atual {
             border-color: #28a745;
-            border-width: 3px;
+            border-width: 2px;
             background: linear-gradient(135deg, #f8fff9 0%, #f0f9f0 100%);
-            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3);
-            transform: scale(1.02);
+            box-shadow: 0 3px 12px rgba(40, 167, 69, 0.2);
         }
         
-        .etapa-box.etapa-atual::before {
+        .etapa-card-compacta.etapa-atual::before {
             content: "";
             position: absolute;
             top: 0;
             left: 0;
-            width: 5px;
+            width: 4px;
             height: 100%;
             background: linear-gradient(to bottom, #28a745, #20c997);
             border-radius: 0 2px 2px 0;
         }
         
-        .etapa-box.status-aprovado {
+        .etapa-card-compacta.status-aprovado {
             border-color: #28a745;
             background: linear-gradient(135deg, #ffffff 0%, #f8fff9 100%);
         }
         
-        .etapa-box.status-reprovado {
+        .etapa-card-compacta.status-reprovado {
             border-color: #dc3545;
             background: linear-gradient(135deg, #ffffff 0%, #fff8f9 100%);
         }
         
-        .etapa-box.status-em_analise,
-        .etapa-box.status-pendente {
+        .etapa-card-compacta.status-em_analise,
+        .etapa-card-compacta.status-pendente {
             border-color: #ffc107;
             background: linear-gradient(135deg, #ffffff 0%, #fffef8 100%);
         }
         
-        .etapa-box.nao-iniciada {
+        .etapa-card-compacta.nao-iniciada {
             border-color: #6c757d;
             background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-            opacity: 0.8;
+            opacity: 0.85;
         }
         
-        /* ===== ELEMENTOS DO CARD PRINCIPAL ===== */
-        .etapa-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
+        /* ===== ETAPAS INATIVAS (não são a atual do fluxo) ===== */
+        .etapa-card-compacta.etapa-inativa {
+            background: #ffffff;
+            border-color: #e9ecef;
+            position: relative;
         }
         
-        .etapa-numero .badge {
-            font-size: 0.9rem;
-            padding: 0.5rem 0.7rem;
-            font-weight: 600;
+        .etapa-card-compacta.etapa-inativa:hover {
+            border-color: #adb5bd;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         
-        .etapa-nome {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #2c3e50;
-            margin-bottom: 0.75rem;
-            text-align: center;
-            line-height: 1.3;
+        .etapa-card-compacta.etapa-inativa .btn {
         }
         
-        .etapa-organizacoes {
-            margin-bottom: 0.75rem;
-            text-align: center;
+        .etapa-card-compacta.etapa-inativa .etapa-nome-compacta {
+            color: #495057;
         }
         
-        .org-fluxo {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.85rem;
+        .etapa-card-compacta.etapa-inativa .org-fluxo-compacto {
             color: #6c757d;
         }
         
-        .org-solicitante, .org-executora {
-            font-weight: 600;
-        }
-        
-        .etapa-status-badge {
-            text-align: center;
-            margin-bottom: 1rem;
-        }
-        
-        .badge-lg {
-            font-size: 0.9rem;
-            padding: 0.5rem 1rem;
-            font-weight: 600;
-        }
-        
-        .etapa-acoes {
+        /* ===== ELEMENTOS DO CARD COMPACTO ===== */
+        .etapa-numero-compacto .badge-circle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
             display: flex;
-            gap: 0.5rem;
+            align-items: center;
             justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
         }
         
-        .etapa-acoes .btn {
-            font-size: 0.8rem;
-            padding: 0.4rem 0.8rem;
-            border-radius: 6px;
+        .etapa-nome-compacta {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #2c3e50;
+            line-height: 1.2;
+            margin-bottom: 0;
+        }
+        
+        .org-fluxo-compacto {
+            font-size: 0.75rem;
+            color: #6c757d;
+            line-height: 1.1;
+        }
+        
+        .org-fluxo-compacto .org-solicitante, 
+        .org-fluxo-compacto .org-executora {
             font-weight: 500;
+        }
+        
+        .etapa-status-compacto .badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.5rem;
+            font-weight: 500;
+        }
+        
+        .etapa-acoes-compactas .btn-xs {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.7rem;
+            border-radius: 3px;
+            margin-left: 2px;
+        }
+        
+        .etapa-acoes-compactas .btn-group-sm {
+            display: flex;
+            gap: 2px;
+        }
+        
+        /* Badge "ATUAL" compacto */
+        .badge-sm {
+            font-size: 0.65rem;
+            padding: 0.2rem 0.4rem;
+        }
+        
+        /* ===== SEPARADORES COMPACTOS ===== */
+        .etapa-separador-compacto {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0.1rem 0;
+            position: relative;
+        }
+        
+        .linha-separadora-compacta {
+            width: 2px;
+            height: 8px;
+            background: linear-gradient(to bottom, #dee2e6, #6c757d);
+            border-radius: 1px;
+        }
+        
+        .icone-separador-compacto {
+            position: absolute;
+            background: #ffffff;
+            color: #6c757d;
+            font-size: 0.6rem;
+            padding: 1px;
+            border-radius: 50%;
+            border: 1px solid #dee2e6;
         }
         
         /* ===== SEÇÃO DE OPÇÕES DE TRANSIÇÃO ===== */
         .opcoes-transicao {
-            margin-left: 2rem;
-            padding-left: 1rem;
-            border-left: 3px solid #e9ecef;
+            margin-left: 1.2rem;
+            padding-left: 0.5rem;
+            border-left: 2px solid #e9ecef;
             position: relative;
+            margin-top: 0.15rem;
+            margin-bottom: 0.15rem;
         }
         
-        .opcoes-titulo {
-            margin-bottom: 0.75rem;
-            font-weight: 600;
-        }
-        
-        .opcao-card {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 0.75rem;
-            margin-bottom: 0.5rem;
+        /* ===== SISTEMA DE EXPANSÃO/COLAPSO ===== */
+        .opcoes-toggle {
+            cursor: pointer;
+            padding: 0.4rem 0.6rem;
+            border-radius: 6px;
             transition: all 0.3s ease;
-            position: relative;
+            margin-bottom: 0.3rem;
+            border: 1px solid transparent;
         }
         
-        .opcao-card:hover {
-            background: #ffffff;
+        .opcoes-toggle:hover {
+            background: #e9ecef;
             border-color: #007bff;
-            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
-        .opcao-card.opcao-ativa {
-            background: linear-gradient(135deg, #e8f5e8 0%, #f0f9f0 100%);
-            border-color: #28a745;
-            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
-        }
-        
-        .opcao-card.opcao-ativa::before {
-            content: "";
-            position: absolute;
-            left: -4px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 8px;
-            height: 8px;
-            background: #28a745;
-            border-radius: 50%;
-            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.3);
-        }
-        
-        .opcao-card.opcao-final {
-            background: linear-gradient(135deg, #fff3cd 0%, #fef7e0 100%);
-            border-color: #ffc107;
-        }
-        
-        .opcao-condicao {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.5rem;
-            font-size: 0.85rem;
-        }
-        
-        .condicao-label {
-            font-weight: 600;
-            color: #6c757d;
-        }
-        
-        .opcao-destino {
+        .opcoes-titulo-toggle {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            font-size: 0.85rem;
+            font-weight: 600;
         }
         
-        .destino-info {
+        .opcoes-toggle-area {
             display: flex;
             align-items: center;
-            flex: 1;
+            gap: 0.3rem;
         }
         
-        .destino-nome {
-            font-weight: 600;
+        .toggle-hint {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            font-style: italic;
+            transition: opacity 0.3s ease;
+        }
+        
+        .opcoes-toggle:hover .toggle-hint {
+            opacity: 1;
+            color: #007bff;
+        }
+        
+        .opcoes-arrow {
+            transition: transform 0.3s ease;
             color: #495057;
-            margin-right: 0.5rem;
+            font-size: 0.9rem;
+            padding: 0.2rem;
+            border-radius: 3px;
+            background: rgba(0,123,255,0.1);
         }
         
-        .destino-org {
-            font-size: 0.8rem;
+        .opcoes-toggle:hover .opcoes-arrow {
+            color: #007bff;
+            background: rgba(0,123,255,0.2);
+        }
+        
+        .opcoes-arrow.rotated {
+            transform: rotate(180deg);
+        }
+        
+        /* Container das opções */
+        .opcoes-container {
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        /* Indicador visual quando há opções ativas */
+        .opcoes-toggle.tem-ativa {
+            background: linear-gradient(135deg, #e8f5e8 0%, #f0f9f0 100%);
+            border-left: 3px solid #28a745;
+        }
+        
+        .opcoes-toggle.tem-ativa .opcoes-arrow {
+            color: #28a745;
+            background: rgba(40,167,69,0.1);
+        }
+        
+        .opcoes-toggle.tem-ativa:hover .opcoes-arrow {
+            background: rgba(40,167,69,0.2);
         }
         
         /* ===== CAIXA LATERAL DIREITA ===== */
@@ -965,6 +1066,80 @@
             margin-bottom: 1rem;
         }
         
+        /* ===== BOTÃO DE ACESSO/EDIÇÃO DA ETAPA ===== */
+        .botao-acesso-etapa {
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 1rem;
+            margin-bottom: 1rem !important;
+        }
+        
+        .btn-acesso-etapa {
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+        }
+        
+        .btn-acesso-etapa.btn-primary {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            border: none;
+            color: white;
+        }
+        
+        .btn-acesso-etapa.btn-primary:hover {
+            background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
+        }
+        
+        .btn-acesso-etapa.btn-outline-info {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border: 2px solid #17a2b8;
+            color: #17a2b8;
+        }
+        
+        .btn-acesso-etapa.btn-outline-info:hover {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            border-color: #138496;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4);
+        }
+        
+        .btn-acesso-etapa:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn-acesso-etapa:hover:before {
+            left: 100%;
+        }
+        
+        .btn-acesso-etapa .fas {
+            transition: transform 0.3s ease;
+        }
+        
+        .btn-acesso-etapa:hover .fa-arrow-right {
+            transform: translateX(3px);
+        }
+        
+        .btn-acesso-etapa:hover .fa-edit,
+        .btn-acesso-etapa:hover .fa-eye {
+            transform: scale(1.1);
+        }
+        
         /* ===== RESPONSIVIDADE ===== */
         @media (max-width: 991px) {
             .opcoes-transicao {
@@ -1012,6 +1187,83 @@
             .opcoes-transicao {
                 margin-left: 0.5rem;
             }
+        }
+        
+        /* ===== CARDS DAS OPÇÕES ===== */
+        .opcao-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 0.6rem;
+            margin-bottom: 0.4rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .opcao-card:hover {
+            background: #ffffff;
+            border-color: #007bff;
+            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+        }
+        
+        .opcao-card.opcao-ativa {
+            background: linear-gradient(135deg, #e8f5e8 0%, #f0f9f0 100%);
+            border-color: #28a745;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+        }
+        
+        .opcao-card.opcao-ativa::before {
+            content: "";
+            position: absolute;
+            left: -3px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 6px;
+            background: #28a745;
+            border-radius: 50%;
+            box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+        }
+        
+        .opcao-card.opcao-final {
+            background: linear-gradient(135deg, #fff3cd 0%, #fef7e0 100%);
+            border-color: #ffc107;
+        }
+        
+        .opcao-condicao {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.8rem;
+        }
+        
+        .condicao-label {
+            font-weight: 600;
+            color: #6c757d;
+        }
+        
+        .opcao-destino {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.8rem;
+        }
+        
+        .destino-info {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+        
+        .destino-nome {
+            font-weight: 600;
+            color: #495057;
+            margin-right: 0.4rem;
+        }
+        
+        .destino-org {
+            font-size: 0.75rem;
         }
     </style>
 @stop
@@ -1366,8 +1618,6 @@
                         errorMessage = 'Histórico não encontrado';
                     } else if (xhr.status === 500) {
                         errorMessage = 'Erro interno do servidor';
-                    } else if (xhr.responseJSON && xhr.responseJSON.error) {
-                        errorMessage = xhr.responseJSON.error;
                     }
                     
                     $('#historicoContent').html(`
@@ -1413,8 +1663,9 @@
             
             // Buscar dados da etapa via PHP embutido
             @php
-                $etapasJson = $etapasFluxo->map(function($etapa) use ($execucoes) {
+                $etapasJson = $etapasFluxo->map(function($etapa) use ($execucoes, $etapasAcessiveis, $acao) {
                     $execucao = $execucoes->get($etapa->id);
+                    $acessibilidade = $etapasAcessiveis->get($etapa->id, []);
                     return [
                         'id' => $etapa->id,
                         'nome' => $etapa->nome_etapa,
@@ -1430,6 +1681,9 @@
                         'status_codigo' => $execucao ? $execucao->status->codigo : 'NAO_INICIADA',
                         'dias_restantes' => $execucao && $execucao->data_prazo ? intval(now()->diffInDays($execucao->data_prazo, false)) : null,
                         'prazo_vencido' => $execucao && $execucao->data_prazo ? $execucao->data_prazo->isPast() : false,
+                        'pode_acessar' => $acessibilidade['pode_acessar'] ?? false,
+                        'pode_ver_detalhes' => $acessibilidade['pode_ver_detalhes'] ?? false,
+                        'url_detalhada' => route('workflow.etapa-detalhada', [$acao->id, $etapa->id]),
                     ];
                 })->keyBy('id');
             @endphp
@@ -1452,6 +1706,28 @@
             let infoHtml = `
                 <div class="info-etapa-detalhada active">
                     <h6 class="mb-3 text-primary">${etapa.nome}</h6>
+                    
+                    <!-- Botão de Acesso/Edição Evidente - TOPO -->
+                    ${etapa.pode_ver_detalhes ? `
+                        <div class="botao-acesso-etapa mb-4">
+                            <a href="${etapa.url_detalhada}" class="btn btn-acesso-etapa ${etapa.pode_acessar ? 'btn-primary' : 'btn-outline-info'} btn-block">
+                                <i class="fas fa-${etapa.pode_acessar ? 'edit' : 'eye'} mr-2"></i>
+                                ${etapa.pode_acessar ? 'Editar Etapa' : 'Acessar Etapa'}
+                                <i class="fas fa-arrow-right ml-2"></i>
+                            </a>
+                            ${etapa.pode_acessar ? `
+                                <small class="text-success d-block text-center mt-2">
+                                    <i class="fas fa-check-circle"></i>
+                                    Você pode editar esta etapa
+                                </small>
+                            ` : `
+                                <small class="text-muted d-block text-center mt-2">
+                                    <i class="fas fa-info-circle"></i>
+                                    Modo visualização apenas
+                                </small>
+                            `}
+                        </div>
+                    ` : ''}
                     
                     <div class="info-item-lateral">
                         <i class="fas fa-users"></i>
@@ -1558,5 +1834,52 @@
                 console.log('Modal de histórico exibido com sucesso');
             });
         });
+
+        // ===== SISTEMA DE EXPANSÃO/COLAPSO DAS OPÇÕES =====
+        function toggleOpcoes(etapaId) {
+            const container = document.getElementById(`opcoes-${etapaId}`);
+            const arrow = document.getElementById(`arrow-${etapaId}`);
+            const toggle = arrow.closest('.opcoes-toggle');
+            
+            if (container.style.display === 'none' || container.style.display === '') {
+                // Expandir
+                container.style.display = 'block';
+                arrow.classList.add('rotated');
+                
+                // Animar a expansão
+                container.style.maxHeight = '0px';
+                container.style.opacity = '0';
+                setTimeout(() => {
+                    container.style.maxHeight = container.scrollHeight + 'px';
+                    container.style.opacity = '1';
+                }, 10);
+                
+            } else {
+                // Colapsar
+                container.style.maxHeight = '0px';
+                container.style.opacity = '0';
+                arrow.classList.remove('rotated');
+                
+                setTimeout(() => {
+                    container.style.display = 'none';
+                    container.style.maxHeight = '';
+                }, 300);
+            }
+        }
+        
+        // ===== DESTACAR TOGGLES COM OPÇÕES ATIVAS =====
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar cada etapa se tem opções ativas
+            document.querySelectorAll('.opcoes-transicao').forEach(function(opcaoTransicao) {
+                const hasOpcaoAtiva = opcaoTransicao.querySelector('.opcao-ativa');
+                const toggle = opcaoTransicao.querySelector('.opcoes-toggle');
+                
+                if (hasOpcaoAtiva && toggle) {
+                    toggle.classList.add('tem-ativa');
+                }
+            });
+        });
+        
+        // ===== MELHORAR A VISUALIZAÇÃO DOS ALERTAS DE ETAPA =====
     </script>
 @stop 
