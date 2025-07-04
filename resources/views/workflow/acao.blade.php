@@ -40,6 +40,42 @@
                     <strong>Execução:</strong> {{ number_format($acao->percentual_execucao ?? 0, 1) }}%
                 </div>
             </div>
+            <div class="row mt-3">
+                <div class="col-md-12">
+                    <strong>Status da Ação:</strong>
+                    @php
+                        $statusAcao = $acao->status ?? 'PLANEJAMENTO';
+                        $badgeClasses = [
+                            'PLANEJAMENTO' => 'badge-warning',
+                            'EM_EXECUCAO' => 'badge-primary', 
+                            'PARALISADA' => 'badge-danger',
+                            'CONCLUIDA' => 'badge-success',
+                            'CANCELADA' => 'badge-dark',
+                            'FINALIZADO' => 'badge-success'
+                        ];
+                        $statusLabels = [
+                            'PLANEJAMENTO' => 'Planejamento',
+                            'EM_EXECUCAO' => 'Em Execução',
+                            'PARALISADA' => 'Paralisada',
+                            'CONCLUIDA' => 'Concluída',
+                            'CANCELADA' => 'Cancelada',
+                            'FINALIZADO' => 'Finalizado'
+                        ];
+                        $badgeClass = $badgeClasses[$statusAcao] ?? 'badge-secondary';
+                        $statusLabel = $statusLabels[$statusAcao] ?? $statusAcao;
+                    @endphp
+                    <span class="badge {{ $badgeClass }} badge-lg ml-2">
+                        <i class="fas fa-{{ $statusAcao === 'CONCLUIDA' || $statusAcao === 'FINALIZADO' ? 'check-circle' : ($statusAcao === 'EM_EXECUCAO' ? 'play-circle' : ($statusAcao === 'PARALISADA' ? 'pause-circle' : ($statusAcao === 'CANCELADA' ? 'times-circle' : 'clock'))) }}"></i>
+                        {{ $statusLabel }}
+                    </span>
+                    @if($acao->is_finalizado)
+                        <span class="badge badge-info badge-sm ml-2">
+                            <i class="fas fa-flag-checkered"></i>
+                            Projeto Finalizado
+                        </span>
+                    @endif
+                </div>
+            </div>
         </div>
     </div>
 
@@ -48,7 +84,7 @@
         <div class="card-header">
             <h3 class="card-title">
                 <i class="fas fa-project-diagram"></i>
-                Mapa do Fluxo Condicional
+                Mapa do Fluxo da Ação
             </h3>
             <div class="card-tools">
                 <button class="btn btn-tool" data-card-widget="collapse">
@@ -77,7 +113,52 @@
                                 $execucao = $execucoes->get($etapa->id);
                                 $statusAtual = $execucao ? $execucao->status->codigo : null;
                                 $transicoes = $etapa->transicoesOrigem->where('is_ativo', true);
-                                $isEtapaAtual = $etapaAtual && $etapaAtual->id === $etapa->id;
+                                $isEtapaAtual = !$acao->is_finalizado && $etapaAtual && $etapaAtual->id === $etapa->id;
+                                
+                                // LÓGICA CORRIGIDA: Determinar se a etapa foi executada ou pulada
+                                $isEtapaExecutada = ($statusAtual !== null && $statusAtual !== 'NAO_APLICAVEL');
+                                $isEtapaPulada = false;
+                                
+                                // Se tem status NAO_APLICAVEL, é considerada pulada
+                                if ($statusAtual === 'NAO_APLICAVEL') {
+                                    $isEtapaPulada = true;
+                                }
+                                
+                                // DEBUG: Adicionar informações temporárias
+                                $debugInfo = [
+                                    'etapa_id' => $etapa->id,
+                                    'etapa_nome' => $etapa->nome_etapa,
+                                    'ordem_execucao' => $etapa->ordem_execucao,
+                                    'tem_execucao' => $statusAtual !== null,
+                                    'status_atual' => $statusAtual,
+                                    'etapa_atual_id' => $etapaAtual ? $etapaAtual->id : null,
+                                    'etapa_atual_ordem' => $etapaAtual ? $etapaAtual->ordem_execucao : null,
+                                    'projeto_finalizado' => $acao->is_finalizado,
+                                    'is_executada' => $isEtapaExecutada
+                                ];
+                                
+                                // Se não foi executada OU tem status NAO_APLICAVEL, verificar se foi pulada
+                                if (!$isEtapaExecutada || $statusAtual === 'NAO_APLICAVEL') {
+                                    if ($statusAtual === 'NAO_APLICAVEL') {
+                                        $isEtapaPulada = true;
+                                        $debugInfo['logica_aplicada'] = 'status_nao_aplicavel';
+                                    } elseif ($acao->is_finalizado) {
+                                        $isEtapaPulada = true;
+                                        $debugInfo['logica_aplicada'] = 'projeto_finalizado';
+                                    } elseif ($etapaAtual && !$acao->is_finalizado) {
+                                        // Se a etapa atual tem ordem maior que esta etapa, foi pulada
+                                        $isEtapaPulada = ($etapaAtual->ordem_execucao > $etapa->ordem_execucao);
+                                        $debugInfo['logica_aplicada'] = 'durante_processo';
+                                        $debugInfo['condicao'] = $etapaAtual->ordem_execucao . ' > ' . $etapa->ordem_execucao;
+                                    } else {
+                                        $debugInfo['logica_aplicada'] = 'nenhuma';
+                                    }
+                                } else {
+                                    $debugInfo['logica_aplicada'] = 'etapa_executada';
+                                }
+                                
+                                $debugInfo['is_pulada'] = $isEtapaPulada;
+                                
                             @endphp
                             
                             <!-- Separador compacto entre etapas -->
@@ -90,10 +171,28 @@
                                 </div>
                             @endif
                             
+                            <!-- DEBUG ETAPA: {{ json_encode($debugInfo) }} -->
                             <div class="etapa-container" data-etapa-id="{{ $etapa->id }}" onclick="mostrarInfoEtapa({{ $etapa->id }})">
                                 <!-- Card Principal da Etapa - VERSÃO COMPACTA -->
                                 <div class="etapa-compacta">
-                                    <div class="card etapa-card-compacta {{ $statusAtual ? 'status-' . strtolower($statusAtual) : 'nao-iniciada' }} {{ $isEtapaAtual ? 'etapa-atual' : '' }} {{ !$isEtapaAtual && $etapaAtual ? 'etapa-inativa' : '' }}">
+                                    @php
+                                        $classes = ['card', 'etapa-card-compacta'];
+                                        
+                                        if ($isEtapaPulada) {
+                                            $classes[] = 'etapa-pulada';
+                                        } elseif ($isEtapaExecutada) {
+                                            $classes[] = 'etapa-executada';
+                                        } elseif ($isEtapaAtual) {
+                                            $classes[] = 'etapa-atual';
+                                        } else {
+                                            $classes[] = 'nao-iniciada';
+                                        }
+                                        
+                                        if ($statusAtual) {
+                                            $classes[] = 'status-' . strtolower($statusAtual);
+                                        }
+                                    @endphp
+                                    <div class="{{ implode(' ', $classes) }}">
                                         <div class="card-body p-3">
                                             <div class="row align-items-center">
                                                 <!-- Número e Status -->
@@ -129,6 +228,8 @@
                                                             <span class="badge badge-{{ $statusAtual === 'APROVADO' ? 'success' : ($statusAtual === 'REPROVADO' ? 'danger' : 'warning') }}">
                                                                 {{ $execucao->status->nome }}
                                                             </span>
+                                                        @elseif($isEtapaPulada)
+                                                            <span class="badge badge-secondary">Não Aplicável</span>
                                                         @else
                                                             <span class="badge badge-secondary">Aguardando</span>
                                                         @endif
@@ -145,9 +246,9 @@
                                                         <div class="btn-group-sm">
                                                             @if($podeVerDetalhes)
                                                                 <a href="{{ route('workflow.etapa-detalhada', [$acao, $etapa]) }}" 
-                                                                   class="btn btn-xs {{ $podeAcessar ? 'btn-primary' : 'btn-outline-info' }}"
-                                                                   title="{{ $podeAcessar ? 'Acessar Etapa' : 'Visualizar Etapa' }}">
-                                                                    <i class="fas fa-{{ $podeAcessar ? 'edit' : 'eye' }}"></i>
+                                                                   class="btn btn-xs {{ $podeAcessar && !$acao->is_finalizado ? 'btn-primary' : 'btn-outline-info' }}"
+                                                                   title="{{ $podeAcessar && !$acao->is_finalizado ? 'Acessar Etapa' : 'Visualizar Etapa' }}">
+                                                                    <i class="fas fa-{{ $podeAcessar && !$acao->is_finalizado ? 'edit' : 'eye' }}"></i>
                                                                 </a>
                                                             @endif
                                                             
@@ -227,14 +328,50 @@
                                         </div>
                                     </div>
                                 @else
-                                    <div class="opcoes-transicao">
-                                        <div class="opcao-card opcao-final">
-                                            <div class="opcao-condicao">
-                                                <i class="fas fa-flag-checkered text-success mr-2"></i>
-                                                <span class="text-muted">Etapa final do fluxo</span>
+                                    @php
+                                        // CORREÇÃO DO BUG: Verificar se é realmente a última etapa baseado na ordem_execucao
+                                        $ultimaEtapaDoFluxo = $etapasFluxo->sortByDesc('ordem_execucao')->first();
+                                        $isRealmenteUltimaEtapa = $ultimaEtapaDoFluxo && $ultimaEtapaDoFluxo->id === $etapa->id;
+                                        $podeAcessarEtapa = $etapasAcessiveis->get($etapa->id)['pode_acessar'] ?? false;
+                                    @endphp
+                                    
+                                    @if($isRealmenteUltimaEtapa)
+                                        <div class="opcoes-transicao">
+                                            <div class="opcao-card opcao-final">
+                                                <div class="opcao-condicao">
+                                                    <i class="fas fa-flag-checkered text-success mr-2"></i>
+                                                    <span class="text-muted">Etapa final do fluxo</span>
+                                                </div>
+                                                
+                                                @if(!$acao->is_finalizado && $podeAcessarEtapa && $statusAtual === 'APROVADO')
+                                                    <div class="mt-3">
+                                                        <button type="button" class="btn btn-success btn-sm btn-block" 
+                                                                onclick="finalizarProjetoCompleto({{ $acao->id }})"
+                                                                title="Finalizar projeto independente de outras etapas">
+                                                            <i class="fas fa-flag-checkered mr-2"></i>
+                                                            Finalizar Projeto
+                                                        </button>
+                                                        <small class="text-muted d-block mt-1 text-center">
+                                                            <i class="fas fa-info-circle mr-1"></i>
+                                                            Finaliza o projeto mesmo com etapas pendentes
+                                                        </small>
+                                                    </div>
+                                                @endif
                                             </div>
                                         </div>
-                                    </div>
+                                    @else
+                                        <div class="opcoes-transicao">
+                                            <div class="opcao-card opcao-sem-transicoes">
+                                                <div class="opcao-condicao">
+                                                    <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
+                                                    <span class="text-muted">Transições não configuradas</span>
+                                                    <small class="d-block text-muted mt-1">
+                                                        Esta etapa não possui transições configuradas. Configure as transições na gestão do fluxo.
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endif
                                 @endif
                             </div>
                         @endforeach
@@ -270,37 +407,55 @@
                     <div class="legenda-fluxo">
                         <h6 class="text-muted mb-3">Legenda:</h6>
                         <div class="row">
-                            <div class="col-md-2 col-sm-6 mb-2">
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
                                 <div class="legenda-item">
                                     <span class="badge badge-success"><i class="fas fa-star"></i> ATUAL</span>
                                     <small>Etapa ativa - pode editar</small>
                                 </div>
                             </div>
-                            <div class="col-md-2 col-sm-6 mb-2">
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
                                 <div class="legenda-item">
                                     <span class="badge badge-success">Aprovado</span>
                                     <small>Etapa concluída</small>
                                 </div>
                             </div>
-                            <div class="col-md-2 col-sm-6 mb-2">
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
+                                <div class="legenda-item">
+                                    <div style="border: 2px solid #28a745; background: #f8fff9; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; position: relative;">
+                                        <div style="position: absolute; left: 0; top: 0; width: 4px; height: 100%; background: #28a745; border-radius: 0 2px 2px 0;"></div>
+                                        <span style="margin-left: 8px;">Executada</span>
+                                    </div>
+                                    <small>Etapa foi executada</small>
+                                </div>
+                            </div>
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
+                                <div class="legenda-item">
+                                    <div style="border: 2px solid #6c757d; background: #f8f9fa; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; position: relative; opacity: 0.7;">
+                                        <div style="position: absolute; left: 0; top: 0; width: 4px; height: 100%; background: #6c757d; border-radius: 0 2px 2px 0;"></div>
+                                        <span style="margin-left: 8px; text-decoration: line-through; color: #6c757d;">Pulada</span>
+                                    </div>
+                                    <small>Etapa foi pulada/não aplicável</small>
+                                </div>
+                            </div>
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
                                 <div class="legenda-item">
                                     <span class="badge badge-warning">Em Análise</span>
                                     <small>Em processamento</small>
                                 </div>
                             </div>
-                            <div class="col-md-2 col-sm-6 mb-2">
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
                                 <div class="legenda-item">
                                     <span class="badge badge-secondary">Aguardando</span>
                                     <small>Não iniciada</small>
                                 </div>
                             </div>
-                            <div class="col-md-2 col-sm-6 mb-2">
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
                                 <div class="legenda-item">
                                     <i class="fas fa-edit text-primary"></i>
                                     <small>Pode editar/interagir</small>
                                 </div>
                             </div>
-                            <div class="col-md-2 col-sm-6 mb-2">
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
                                 <div class="legenda-item">
                                     <i class="fas fa-eye text-info"></i>
                                     <small>Apenas visualizar</small>
@@ -769,6 +924,66 @@
             background: linear-gradient(135deg, #ffffff 0%, #f8fff9 100%);
         }
         
+        /* ===== ESTILO PARA ETAPAS EXECUTADAS ===== */
+        .etapa-card-compacta.etapa-executada {
+            border-color: #28a745 !important;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fff9 100%) !important;
+            position: relative;
+        }
+        
+        .etapa-card-compacta.etapa-executada::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(to bottom, #28a745, #20c997);
+            border-radius: 0 2px 2px 0;
+        }
+        
+        /* ===== ESTILO PARA ETAPAS PULADAS/NÃO APLICÁVEIS ===== */
+        .card.etapa-card-compacta.etapa-pulada,
+        .etapa-card-compacta.etapa-pulada {
+            border: 2px solid #6c757d !important;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+            position: relative !important;
+            opacity: 0.7 !important;
+        }
+        
+        .etapa-card-compacta.etapa-pulada::before {
+            content: "" !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 4px !important;
+            height: 100% !important;
+            background: linear-gradient(to bottom, #6c757d, #495057) !important;
+            border-radius: 0 2px 2px 0 !important;
+            z-index: 1 !important;
+        }
+        
+        .etapa-card-compacta.etapa-pulada .etapa-nome-compacta {
+            color: #6c757d !important;
+            text-decoration: line-through !important;
+            font-style: italic !important;
+        }
+        
+        .etapa-card-compacta.etapa-pulada .org-fluxo-compacto {
+            color: #adb5bd !important;
+        }
+        
+        .etapa-card-compacta.etapa-pulada .badge {
+            background-color: #6c757d !important;
+            color: #ffffff !important;
+        }
+        
+        /* Garantir que etapas puladas sempre tenham precedência visual */
+        .etapa-card-compacta.etapa-pulada.nao-iniciada {
+            border-color: #6c757d !important;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+        }
+        
         .etapa-card-compacta.status-reprovado {
             border-color: #dc3545;
             background: linear-gradient(135deg, #ffffff 0%, #fff8f9 100%);
@@ -1230,6 +1445,12 @@
             border-color: #ffc107;
         }
         
+        .opcao-card.opcao-sem-transicoes {
+            background: linear-gradient(135deg, #f8d7da 0%, #fce6e7 100%);
+            border-color: #f5c6cb;
+            border-style: dashed;
+        }
+        
         .opcao-condicao {
             display: flex;
             align-items: center;
@@ -1264,6 +1485,70 @@
         
         .destino-org {
             font-size: 0.75rem;
+        }
+        
+        /* ===== ESTILOS PARA BADGE DE STATUS DA AÇÃO ===== */
+        .badge-lg {
+            font-size: 0.95rem;
+            padding: 0.5rem 0.75rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .badge-warning {
+            background-color: #ffc107 !important;
+            color: #856404 !important;
+        }
+        
+        .badge-primary {
+            background-color: #007bff !important;
+            color: #ffffff !important;
+        }
+        
+        .badge-danger {
+            background-color: #dc3545 !important;
+            color: #ffffff !important;
+        }
+        
+        .badge-success {
+            background-color: #28a745 !important;
+            color: #ffffff !important;
+        }
+        
+        .badge-dark {
+            background-color: #343a40 !important;
+            color: #ffffff !important;
+        }
+        
+        .badge-info {
+            background-color: #17a2b8 !important;
+            color: #ffffff !important;
+        }
+        
+        .badge-secondary {
+            background-color: #6c757d !important;
+            color: #ffffff !important;
+        }
+        
+        /* Animação sutil para status da ação */
+        .badge-lg:hover {
+            transform: scale(1.05);
+            transition: transform 0.2s ease;
+        }
+        
+        /* Status especial para projeto finalizado */
+        .badge-sm {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        
+        /* Modal mais largo para finalização */
+        .swal-wide {
+            width: 600px !important;
         }
     </style>
 @stop
@@ -1881,5 +2166,73 @@
         });
         
         // ===== MELHORAR A VISUALIZAÇÃO DOS ALERTAS DE ETAPA =====
+        
+        // Função para finalizar projeto completo (independente de transições)
+        function finalizarProjetoCompleto(acaoId) {
+            console.log('Finalizar projeto completo:', acaoId);
+            
+            Swal.fire({
+                title: 'Finalizar Projeto Completo',
+                html: `
+                    <div class="text-left">
+                        <p><strong>Atenção:</strong> Esta ação irá:</p>
+                        <ul style="text-align: left; display: inline-block;">
+                            <li>Finalizar o projeto independente de etapas pendentes</li>
+                            <li>Marcar todas as etapas não executadas como "Não Aplicável"</li>
+                            <li>Definir o status final do projeto como "FINALIZADO"</li>
+                        </ul>
+                        <div class="mt-3">
+                            <label for="observacaoFinalizacao" class="form-label">Observação da finalização:</label>
+                            <textarea id="observacaoFinalizacao" class="form-control" rows="3" 
+                                      placeholder="Digite o motivo da finalização (opcional)"></textarea>
+                        </div>
+                    </div>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, finalizar projeto',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
+                customClass: {
+                    popup: 'swal-wide'
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const observacao = document.getElementById('observacaoFinalizacao').value;
+                    
+                    // Mostrar loading
+                    Swal.fire({
+                        title: 'Finalizando Projeto...',
+                        text: 'Aguarde enquanto o projeto é finalizado',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                    
+                    $.post(`/workflow/acao/${acaoId}/finalizar-completo`, {
+                        _token: '{{ csrf_token() }}',
+                        observacao: observacao
+                    })
+                    .done(function(response) {
+                        console.log('Projeto finalizado:', response);
+                        Swal.fire({
+                            title: 'Projeto Finalizado!',
+                            text: response.message,
+                            icon: 'success',
+                            confirmButtonText: 'OK'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    })
+                    .fail(function(xhr) {
+                        console.error('Erro ao finalizar projeto:', xhr);
+                        let message = xhr.responseJSON?.error || 'Erro ao finalizar projeto';
+                        Swal.fire('Erro!', message, 'error');
+                    });
+                }
+            });
+        }
     </script>
 @stop 

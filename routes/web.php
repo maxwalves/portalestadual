@@ -111,6 +111,10 @@ Route::middleware(['auth'])->group(function () {
         // Fluxo Condicional - Escolha de Próxima Etapa
         Route::get('workflow/execucao/{execucao}/opcoes-transicao', [\App\Http\Controllers\ExecucaoEtapaController::class, 'getOpcoesTransicao'])->name('workflow.opcoes-transicao');
         Route::post('workflow/execucao/{execucao}/executar-transicao', [\App\Http\Controllers\ExecucaoEtapaController::class, 'executarTransicaoEscolhida'])->name('workflow.executar-transicao');
+        
+        // Finalização e Reativação de Projeto
+        Route::post('workflow/acao/{acao}/finalizar-completo', [\App\Http\Controllers\ExecucaoEtapaController::class, 'finalizarProjetoCompleto'])->name('workflow.finalizar-projeto-completo');
+        Route::post('workflow/acao/{acao}/reativar-projeto', [\App\Http\Controllers\ExecucaoEtapaController::class, 'reativarProjetoFinalizado'])->name('workflow.reativar-projeto')->middleware('role:admin|admin_paranacidade');
     });
     
     // ===== ROTAS DE GESTÃO DE WORKFLOW - APENAS ADMINS PARANACIDADE E SISTEMA =====

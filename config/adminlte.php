@@ -480,13 +480,6 @@ return [
                     'can'         => ['admin', 'admin_paranacidade'],
                 ],
                 [
-                    'text'        => 'Etapas de Fluxo',
-                    'url'         => 'etapas-fluxo',
-                    'icon'        => 'fas fa-stream',
-                    'icon_color'  => 'purple',
-                    'can'         => ['admin', 'admin_paranacidade'],
-                ],
-                [
                     'text'        => 'Status',
                     'url'         => 'status',
                     'icon'        => 'fas fa-flag',

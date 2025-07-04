@@ -14,8 +14,9 @@
             <div class="col-sm-6">
                 <ol class="breadcrumb float-sm-right">
                     <li class="breadcrumb-item"><a href="/">Home</a></li>
-                    <li class="breadcrumb-item"><a href="{{ route('etapas-fluxo.index') }}">Etapas de Fluxo</a></li>
-                    <li class="breadcrumb-item active">Editar</li>
+                    <li class="breadcrumb-item"><a href="{{ route('tipos-fluxo.index') }}">Tipos de Fluxo</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('tipos-fluxo.etapas', $etapaFluxo->tipo_fluxo_id) }}">{{ $etapaFluxo->tipoFluxo->nome ?? 'Etapas' }}</a></li>
+                    <li class="breadcrumb-item active">Editar Etapa</li>
                 </ol>
             </div>
         </div>
@@ -208,7 +209,7 @@
                                         <i class="fas fa-save"></i>
                                         Atualizar Etapa
                                     </button>
-                                    <a href="{{ route('etapas-fluxo.index') }}" class="btn btn-secondary ml-2">
+                                    <a href="{{ session('tipo_fluxo_origem') ? route('tipos-fluxo.etapas', session('tipo_fluxo_origem')) : route('tipos-fluxo.etapas', $etapaFluxo->tipo_fluxo_id) }}" class="btn btn-secondary ml-2">
                                         <i class="fas fa-times"></i>
                                         Cancelar
                                     </a>

@@ -213,10 +213,23 @@
                                                     <div class="opcoes-transicao">
                                                         <div class="opcoes-toggle">
                                                             <div class="opcoes-titulo-toggle">
-                                                                <small class="text-success">
-                                                                    <i class="fas fa-flag-checkered"></i>
-                                                                    Etapa final do fluxo
-                                                                </small>
+                                                                @php
+                                                                    // Verifica se é realmente a etapa final (maior ordem_execucao)
+                                                                    $maiorOrdem = $etapasOrdenadas->max('ordem_execucao');
+                                                                    $isEtapaFinal = $etapa->ordem_execucao && $etapa->ordem_execucao == $maiorOrdem;
+                                                                @endphp
+                                                                
+                                                                @if($isEtapaFinal)
+                                                                    <small class="text-success">
+                                                                        <i class="fas fa-flag-checkered"></i>
+                                                                        Etapa final do fluxo
+                                                                    </small>
+                                                                @else
+                                                                    <small class="text-warning">
+                                                                        <i class="fas fa-exclamation-triangle"></i>
+                                                                        Transições não configuradas
+                                                                    </small>
+                                                                @endif
                                                             </div>
                                                         </div>
                                                     </div>

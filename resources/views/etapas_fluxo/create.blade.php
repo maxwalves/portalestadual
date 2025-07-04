@@ -68,7 +68,10 @@
                                         <select class="form-control select2 @error('tipo_fluxo_id') is-invalid @enderror" id="tipo_fluxo_id" name="tipo_fluxo_id">
                                             <option value="">Genérica (não vinculada)</option>
                                             @foreach($tiposFluxo as $tipo)
-                                                <option value="{{ $tipo->id }}" {{ old('tipo_fluxo_id') == $tipo->id ? 'selected' : '' }}>{{ $tipo->nome }}</option>
+                                                <option value="{{ $tipo->id }}" 
+                                                    {{ (old('tipo_fluxo_id', $tipoFluxoPreSelecionado) == $tipo->id) ? 'selected' : '' }}>
+                                                    {{ $tipo->nome }}
+                                                </option>
                                             @endforeach
                                         </select>
                                         @error('tipo_fluxo_id')
@@ -207,7 +210,7 @@
                                         <i class="fas fa-save"></i>
                                         Salvar Etapa
                                     </button>
-                                    <a href="{{ route('etapas-fluxo.index') }}" class="btn btn-secondary ml-2">
+                                    <a href="{{ $tipoFluxoPreSelecionado ? route('tipos-fluxo.etapas', $tipoFluxoPreSelecionado) : route('etapas-fluxo.index') }}" class="btn btn-secondary ml-2">
                                         <i class="fas fa-times"></i>
                                         Cancelar
                                     </a>

@@ -82,7 +82,7 @@
                                             <i class="fas fa-toggle-on"></i>
                                             Status
                                         </th>
-                                        <th class="text-center" style="width: 200px;">
+                                        <th class="text-center" style="width: 250px;">
                                             <i class="fas fa-cogs"></i>
                                             Ações
                                         </th>
@@ -144,6 +144,11 @@
                                                        class="btn btn-info btn-sm" 
                                                        title="Visualizar">
                                                         <i class="fas fa-eye"></i>
+                                                    </a>
+                                                    <a href="{{ route('tipos-fluxo.etapas', $tipoFluxo) }}" 
+                                                       class="btn btn-success btn-sm" 
+                                                       title="Gerenciar Etapas">
+                                                        <i class="fas fa-tasks"></i>
                                                     </a>
                                                     <a href="{{ route('tipos-fluxo.edit', $tipoFluxo) }}" 
                                                        class="btn btn-warning btn-sm" 

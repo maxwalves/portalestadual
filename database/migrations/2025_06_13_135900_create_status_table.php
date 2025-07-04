@@ -91,6 +91,16 @@ return new class extends Migration
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
+            [
+                'codigo' => 'FINALIZADO',
+                'nome' => 'Finalizado',
+                'descricao' => 'Projeto finalizado com sucesso',
+                'categoria' => 'EXECUCAO',
+                'cor' => '#17a2b8',
+                'ordem' => 7,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ]);
     }
 

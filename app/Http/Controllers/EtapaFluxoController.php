@@ -26,14 +26,17 @@ class EtapaFluxoController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(Request $request)
     {
         $tiposFluxo = TipoFluxo::where('is_ativo', true)->orderBy('nome')->get();
         $modulos = Modulo::where('is_ativo', true)->orderBy('nome')->get();
         $gruposExigencia = GrupoExigencia::where('is_ativo', true)->orderBy('nome')->get();
         $organizacoes = Organizacao::where('is_ativo', true)->orderBy('nome')->get();
         
-        return view('etapas_fluxo.create', compact('tiposFluxo', 'modulos', 'gruposExigencia', 'organizacoes'));
+        // Pegar o tipo_fluxo_id da URL se fornecido
+        $tipoFluxoPreSelecionado = $request->get('tipo_fluxo_id');
+        
+        return view('etapas_fluxo.create', compact('tiposFluxo', 'modulos', 'gruposExigencia', 'organizacoes', 'tipoFluxoPreSelecionado'));
     }
 
     /**
@@ -67,6 +70,9 @@ class EtapaFluxoController extends Controller
         $data['tipo_etapa'] = 'CONDICIONAL'; // Padrão: fluxo condicional
         
         $etapaFluxo = EtapaFluxo::create($data);
+        
+        // Armazenar o tipo_fluxo_id na sessão para usar nos redirects subsequentes
+        session(['tipo_fluxo_origem' => $data['tipo_fluxo_id']]);
         
         return redirect()->route('etapas-fluxo.edit', $etapaFluxo)
             ->with('success', 'Etapa criada com sucesso! Configure agora os status e transições.');
@@ -147,6 +153,16 @@ class EtapaFluxoController extends Controller
         }
         
         $etapa_fluxo->update($data);
+        
+        // Verificar se há um tipo de fluxo de origem na sessão para redirecionar corretamente
+        $tipoFluxoOrigem = session('tipo_fluxo_origem');
+        if ($tipoFluxoOrigem) {
+            // Limpar a sessão
+            session()->forget('tipo_fluxo_origem');
+            
+            return redirect()->route('tipos-fluxo.etapas', $tipoFluxoOrigem)
+                ->with('success', 'Etapa criada e configurada com sucesso!');
+        }
         
         return redirect()->route('etapas-fluxo.index')->with('success', 'Etapa atualizada com sucesso!');
     }

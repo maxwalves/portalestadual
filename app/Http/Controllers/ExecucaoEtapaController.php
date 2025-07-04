@@ -799,14 +799,60 @@ class ExecucaoEtapaController extends Controller
                 'user_agent' => $request->userAgent()
             ]);
 
-            // Verificar se deve iniciar próxima etapa
-            $this->verificarProximaEtapa($execucao->acao);
+            // ===== NOVA LÓGICA: VERIFICAR SE É A ÚLTIMA ETAPA E FINALIZAR AUTOMATICAMENTE =====
+            $acao = $execucao->acao;
+            $ultimaEtapaConcluida = false;
+            
+            // Verificar se esta é a última etapa do fluxo
+            if ($acao->isNaUltimaEtapa() && !$acao->isFinalizado()) {
+                // É a última etapa e foi aprovada - finalizar automaticamente o projeto
+                if ($acao->finalizar(Auth::user(), "Projeto finalizado automaticamente após conclusão da última etapa: {$execucao->etapaFluxo->nome_etapa}")) {
+                    $ultimaEtapaConcluida = true;
+                    
+                    \Log::info('Projeto finalizado automaticamente', [
+                        'acao_id' => $acao->id,
+                        'execucao_id' => $execucao->id,
+                        'etapa_final' => $execucao->etapaFluxo->nome_etapa,
+                        'user_id' => Auth::id()
+                    ]);
+
+                    // Registrar a finalização no histórico
+                    HistoricoEtapa::create([
+                        'execucao_etapa_id' => $execucao->id,
+                        'usuario_id' => Auth::id(),
+                        'status_anterior_id' => null,
+                        'status_novo_id' => $statusAprovado->id,
+                        'acao' => 'FINALIZACAO_AUTOMATICA_PROJETO',
+                        'descricao_acao' => 'Projeto finalizado automaticamente após conclusão da última etapa',
+                        'observacao' => "Etapa final '{$execucao->etapaFluxo->nome_etapa}' concluída - projeto finalizado automaticamente",
+                        'dados_alterados' => json_encode([
+                            'acao_status_anterior' => $acao->getOriginal('status'),
+                            'acao_status_novo' => 'FINALIZADO',
+                            'projeto_finalizado' => true,
+                            'data_finalizacao' => now()->toDateTimeString(),
+                            'etapa_final' => $execucao->etapaFluxo->nome_etapa
+                        ]),
+                        'ip_usuario' => $request->ip(),
+                        'user_agent' => $request->userAgent()
+                    ]);
+                }
+            } else {
+                // Verificar se deve iniciar próxima etapa (só se não finalizou)
+                $this->verificarProximaEtapa($acao);
+            }
 
             DB::commit();
 
+            $mensagem = 'Etapa concluída com sucesso';
+            if ($ultimaEtapaConcluida) {
+                $mensagem .= '! O projeto foi finalizado automaticamente, pois esta era a última etapa do fluxo.';
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Etapa concluída com sucesso'
+                'message' => $mensagem,
+                'projeto_finalizado' => $ultimaEtapaConcluida,
+                'data_finalizacao' => $ultimaEtapaConcluida ? $acao->fresh()->data_finalizacao->format('d/m/Y H:i') : null
             ]);
 
         } catch (\Exception $e) {
@@ -899,21 +945,70 @@ class ExecucaoEtapaController extends Controller
                 'user_agent' => $request->userAgent()
             ]);
 
-            // ===== NOVA LÓGICA DE TRANSIÇÕES =====
-            // Buscar transições configuradas para esta etapa e status
-            $transicaoExecutada = $this->executarTransicoes($execucao, $request->status_id);
+            // ===== VERIFICAR FINALIZAÇÃO AUTOMÁTICA QUANDO STATUS FOR APROVADO =====
+            $projetoFinalizadoAutomaticamente = false;
+            if ($novoStatus->codigo === 'APROVADO') {
+                $acao = $execucao->acao;
+                
+                // Verificar se esta é a última etapa do fluxo
+                if ($acao->isNaUltimaEtapa() && !$acao->isFinalizado()) {
+                    // É a última etapa e foi aprovada - finalizar automaticamente o projeto
+                    if ($acao->finalizar(Auth::user(), "Projeto finalizado automaticamente após aprovação da última etapa: {$execucao->etapaFluxo->nome_etapa}")) {
+                        $projetoFinalizadoAutomaticamente = true;
+                        
+                        \Log::info('Projeto finalizado automaticamente via alteração status', [
+                            'acao_id' => $acao->id,
+                            'execucao_id' => $execucao->id,
+                            'etapa_final' => $execucao->etapaFluxo->nome_etapa,
+                            'user_id' => Auth::id()
+                        ]);
+
+                        // Registrar a finalização no histórico
+                        HistoricoEtapa::create([
+                            'execucao_etapa_id' => $execucao->id,
+                            'usuario_id' => Auth::id(),
+                            'status_anterior_id' => null,
+                            'status_novo_id' => $request->status_id,
+                            'acao' => 'FINALIZACAO_AUTOMATICA_PROJETO',
+                            'descricao_acao' => 'Projeto finalizado automaticamente após aprovação da última etapa',
+                            'observacao' => "Etapa final '{$execucao->etapaFluxo->nome_etapa}' aprovada - projeto finalizado automaticamente",
+                            'dados_alterados' => json_encode([
+                                'acao_status_anterior' => $acao->getOriginal('status'),
+                                'acao_status_novo' => 'FINALIZADO',
+                                'projeto_finalizado' => true,
+                                'data_finalizacao' => now()->toDateTimeString(),
+                                'etapa_final' => $execucao->etapaFluxo->nome_etapa,
+                                'trigger' => 'alteracao_status_aprovado'
+                            ]),
+                            'ip_usuario' => $request->ip(),
+                            'user_agent' => $request->userAgent()
+                        ]);
+                    }
+                }
+            }
+
+            // ===== NOVA LÓGICA DE TRANSIÇÕES (só se não finalizou) =====
+            $transicaoExecutada = false;
+            if (!$projetoFinalizadoAutomaticamente) {
+                // Buscar transições configuradas para esta etapa e status
+                $transicaoExecutada = $this->executarTransicoes($execucao, $request->status_id);
+            }
 
             DB::commit();
 
             $mensagem = "Status alterado para {$novoStatus->nome} com sucesso";
-            if ($transicaoExecutada) {
+            if ($projetoFinalizadoAutomaticamente) {
+                $mensagem .= "! O projeto foi finalizado automaticamente, pois esta era a última etapa do fluxo.";
+            } elseif ($transicaoExecutada) {
                 $mensagem .= ". Fluxo direcionado para próxima etapa automaticamente.";
             }
 
             return response()->json([
                 'success' => true,
                 'message' => $mensagem,
-                'transicao_executada' => $transicaoExecutada
+                'transicao_executada' => $transicaoExecutada,
+                'projeto_finalizado' => $projetoFinalizadoAutomaticamente,
+                'data_finalizacao' => $projetoFinalizadoAutomaticamente ? $execucao->acao->fresh()->data_finalizacao->format('d/m/Y H:i') : null
             ]);
 
         } catch (\Exception $e) {
@@ -982,6 +1077,11 @@ class ExecucaoEtapaController extends Controller
 
     private function determinarEtapaAtual(Acao $acao, $execucoes = null)
     {
+        // Se a ação está finalizada, não há etapa atual
+        if ($acao->isFinalizado()) {
+            \Log::info('Ação finalizada - nenhuma etapa atual.');
+            return null;
+        }
         // Se não foi passado execuções, buscar do banco
         if ($execucoes === null || $execucoes->isEmpty()) {
             $execucoes = ExecucaoEtapa::where('acao_id', $acao->id)
@@ -1051,6 +1151,12 @@ class ExecucaoEtapaController extends Controller
             if ($userOrgId === $etapaAtual->organizacao_solicitante_id && !$execucao) {
                 $permissoes['pode_iniciar_etapa'] = true;
             }
+            
+            // PARANACIDADE sempre pode iniciar etapas (independente de ser solicitante)
+            $organizacaoParanacidade = \App\Models\Organizacao::where('tipo', 'PARANACIDADE')->first();
+            if ($organizacaoParanacidade && $userOrgId === $organizacaoParanacidade->id && !$execucao) {
+                $permissoes['pode_iniciar_etapa'] = true;
+            }
 
             // === PERMISSÕES PARA ETAPA JÁ INICIADA ===
             if ($execucao) {
@@ -1071,6 +1177,17 @@ class ExecucaoEtapaController extends Controller
                         $permissoes['pode_escolher_proxima_etapa'] = true;
                     }
                 }
+                
+                // PARANACIDADE sempre pode direcionar etapa (independente de ser solicitante)
+                $organizacaoParanacidade = \App\Models\Organizacao::where('tipo', 'PARANACIDADE')->first();
+                if ($organizacaoParanacidade && $userOrgId === $organizacaoParanacidade->id) {
+                    $permissoes['pode_aprovar_documento'] = true;
+                    $permissoes['pode_concluir_etapa'] = $this->podeConcluirEtapa($execucao);
+                    
+                    if ($execucao->status->codigo !== 'CANCELADO') {
+                        $permissoes['pode_escolher_proxima_etapa'] = true;
+                    }
+                }
             }
         }
 
@@ -1081,8 +1198,12 @@ class ExecucaoEtapaController extends Controller
     {
         $user = Auth::user();
         
-        // Verificar se é da organização solicitante
-        if ($user->organizacao_id !== $etapaFluxo->organizacao_solicitante_id) {
+        // PARANACIDADE sempre pode iniciar qualquer etapa
+        $organizacaoParanacidade = \App\Models\Organizacao::where('tipo', 'PARANACIDADE')->first();
+        $isPARANACIDADE = ($organizacaoParanacidade && $user->organizacao_id === $organizacaoParanacidade->id);
+        
+        // Verificar se é da organização solicitante OU se é PARANACIDADE
+        if ($user->organizacao_id !== $etapaFluxo->organizacao_solicitante_id && !$isPARANACIDADE) {
             return false;
         }
 
@@ -1226,6 +1347,23 @@ class ExecucaoEtapaController extends Controller
             return true;
         }
         
+        // PARANACIDADE sempre pode aprovar documentos (independente de ser solicitante)
+        $organizacaoParanacidade = \App\Models\Organizacao::where('tipo', 'PARANACIDADE')->first();
+        if ($organizacaoParanacidade && $user->organizacao_id === $organizacaoParanacidade->id) {
+            // Documento deve estar pendente ou em análise
+            if (!in_array($documento->status_documento, [Documento::STATUS_PENDENTE, Documento::STATUS_EM_ANALISE])) {
+                return false;
+            }
+            
+            \Log::info('Aprovação permitida - usuário PARANACIDADE na etapa atual', [
+                'user_id' => $user->id,
+                'documento_id' => $documento->id,
+                'etapa_nome' => $etapaFluxo->nome_etapa,
+                'motivo' => 'PARANACIDADE pode aprovar documento na etapa atual'
+            ]);
+            return true;
+        }
+        
         // Deve ser da organização solicitante
         if ($user->organizacao_id !== $etapaFluxo->organizacao_solicitante_id) {
             return false;
@@ -1242,6 +1380,12 @@ class ExecucaoEtapaController extends Controller
     private function podeConcluirEtapa(ExecucaoEtapa $execucao): bool
     {
         $user = Auth::user();
+        
+        // PARANACIDADE sempre pode concluir etapas (independente de ser solicitante)
+        $organizacaoParanacidade = \App\Models\Organizacao::where('tipo', 'PARANACIDADE')->first();
+        if ($organizacaoParanacidade && $user->organizacao_id === $organizacaoParanacidade->id) {
+            return $execucao->status->codigo !== 'CANCELADO';
+        }
         
         // NOVA ABORDAGEM: Flexibilidade total
         // Deve ser da organização solicitante E etapa não pode estar cancelada
@@ -1308,12 +1452,17 @@ class ExecucaoEtapaController extends Controller
             
             $user = Auth::user();
             
-            // Verificar se o usuário pode escolher transições (deve ser da organização solicitante)
+            // PARANACIDADE sempre pode escolher transições (independente de ser solicitante)
+            $organizacaoParanacidade = \App\Models\Organizacao::where('tipo', 'PARANACIDADE')->first();
+            $isPARANACIDADE = ($organizacaoParanacidade && $user->organizacao_id === $organizacaoParanacidade->id);
+            
+            // Verificar se o usuário pode escolher transições (deve ser da organização solicitante OU PARANACIDADE)
             if (!$user->hasRole(['admin', 'admin_paranacidade']) && 
-                $user->organizacao_id !== $execucao->etapaFluxo->organizacao_solicitante_id) {
+                $user->organizacao_id !== $execucao->etapaFluxo->organizacao_solicitante_id &&
+                !$isPARANACIDADE) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Apenas a organização solicitante pode escolher o destino da etapa'
+                    'message' => 'Apenas a organização solicitante ou PARANACIDADE pode escolher o destino da etapa'
                 ], 403);
             }
 
@@ -1470,7 +1619,7 @@ class ExecucaoEtapaController extends Controller
                             'status_nome' => $status->nome,
                             'status_cor' => $status->cor,
                             'etapa_destino_id' => null,
-                            'etapa_destino_nome' => 'Somente alteração de status',
+                            'etapa_destino_nome' => 'Finalizar Ação',
                             'descricao' => "Alterar status para {$status->nome}",
                             'status_condicao' => $status->nome,
                             'prioridade' => 1,
@@ -1511,8 +1660,93 @@ class ExecucaoEtapaController extends Controller
                             'status_condicao' => 'Aprovado',
                             'prioridade' => 10,
                             'organizacao_executora' => $proximaEtapaSequencial->organizacaoExecutora->nome,
-                            'requer_justificativa' => false
+                            'requer_justificativa' => false,
+                            'tipo_operacao' => 'iniciar_etapa'
                         ];
+                    }
+                } else {
+                    // === VERIFICAR SE É A ÚLTIMA ETAPA DO FLUXO - OPÇÃO DE FINALIZAR ===
+                    // CORREÇÃO: Verificar se é realmente a última etapa do fluxo (maior ordem_execucao)
+                    $acao = $execucao->acao;
+                    $ultimaEtapaDoFluxo = EtapaFluxo::where('tipo_fluxo_id', $acao->tipo_fluxo_id)
+                        ->orderBy('ordem_execucao', 'desc')
+                        ->first();
+                    
+                    $isUltimaEtapaDoFluxo = $ultimaEtapaDoFluxo && $ultimaEtapaDoFluxo->id === $execucao->etapa_fluxo_id;
+                    
+                    if ($isUltimaEtapaDoFluxo && !$acao->isFinalizado()) {
+                        $statusFinalizado = Status::where('codigo', 'FINALIZADO')->first();
+                        
+                        if ($statusFinalizado) {
+                            $opcoesDisponiveis[] = [
+                                'transicao_id' => null,
+                                'status_id' => $statusFinalizado->id,
+                                'status_nome' => $statusFinalizado->nome,
+                                'status_cor' => $statusFinalizado->cor,
+                                'etapa_destino_id' => null,
+                                'etapa_destino_nome' => 'Finalizar Ação',
+                                'descricao' => 'Finalizar projeto - não poderá mais ser alterado (apenas admins podem reativar)',
+                                'status_condicao' => 'Finalizado',
+                                'prioridade' => 20,
+                                'organizacao_executora' => 'Sistema',
+                                'requer_justificativa' => false,
+                                'tipo_operacao' => 'finalizar_projeto',
+                                'is_finalizar' => true
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // === ADICIONAR OPÇÃO DE FINALIZAR APENAS NA ÚLTIMA ETAPA DO FLUXO ===
+            $acao = $execucao->acao;
+            
+            // CORREÇÃO: Verificar se é realmente a última etapa do fluxo (maior ordem_execucao)
+            $ultimaEtapaDoFluxo = EtapaFluxo::where('tipo_fluxo_id', $acao->tipo_fluxo_id)
+                ->orderBy('ordem_execucao', 'desc')
+                ->first();
+            
+            $isUltimaEtapaDoFluxo = $ultimaEtapaDoFluxo && $ultimaEtapaDoFluxo->id === $execucao->etapa_fluxo_id;
+            
+            if ($isUltimaEtapaDoFluxo && !$acao->isFinalizado()) {
+                $statusFinalizado = Status::where('codigo', 'FINALIZADO')->first();
+                
+                if ($statusFinalizado) {
+                    // Verificar se já existe uma opção de finalizar
+                    $jaTemOpcaoFinalizar = false;
+                    foreach ($opcoesDisponiveis as $opcao) {
+                        if ($opcao['tipo_operacao'] === 'finalizar_projeto') {
+                            $jaTemOpcaoFinalizar = true;
+                            break;
+                        }
+                    }
+                    
+                    // Se não tem opção de finalizar, adicionar uma
+                    if (!$jaTemOpcaoFinalizar) {
+                        $opcoesDisponiveis[] = [
+                            'transicao_id' => 'finalizar', // ID especial para identificar
+                            'status_id' => $statusFinalizado->id,
+                            'status_nome' => $statusFinalizado->nome,
+                            'status_cor' => $statusFinalizado->cor,
+                            'etapa_destino_id' => null,
+                            'etapa_destino_nome' => 'Finalizar Projeto',
+                            'descricao' => 'Finalizar projeto completamente - todas as etapas puladas serão marcadas como não aplicáveis',
+                            'status_condicao' => 'Finalizado',
+                            'prioridade' => 100, // Prioridade alta para aparecer no topo
+                            'organizacao_executora' => 'Sistema',
+                            'requer_justificativa' => false,
+                            'tipo_operacao' => 'finalizar_projeto',
+                            'is_finalizar' => true
+                        ];
+                        
+                        \Log::info('Opção de finalizar adicionada na última etapa do fluxo', [
+                            'execucao_id' => $execucao->id,
+                            'acao_id' => $acao->id,
+                            'etapa_atual' => $execucao->etapaFluxo->nome_etapa,
+                            'etapa_atual_ordem' => $execucao->etapaFluxo->ordem_execucao,
+                            'ultima_etapa_ordem' => $ultimaEtapaDoFluxo->ordem_execucao,
+                            'is_ultima_etapa' => $isUltimaEtapaDoFluxo
+                        ]);
                     }
                 }
             }
@@ -1523,6 +1757,11 @@ class ExecucaoEtapaController extends Controller
                     'message' => 'Todas as etapas destino já foram iniciadas ou não há próximas etapas configuradas'
                 ], 404);
             }
+
+            // Ordenar opções por prioridade (maior prioridade primeiro)
+            usort($opcoesDisponiveis, function($a, $b) {
+                return $b['prioridade'] - $a['prioridade'];
+            });
 
             return response()->json([
                 'success' => true,
@@ -1552,11 +1791,19 @@ class ExecucaoEtapaController extends Controller
      */
     public function executarTransicaoEscolhida(Request $request, ExecucaoEtapa $execucao)
     {
+        // DEBUG: Log do que está sendo recebido
+        \Log::info('=== DEBUG executarTransicaoEscolhida ===', [
+            'execucao_id' => $execucao->id,
+            'etapa_nome' => $execucao->etapaFluxo->nome_etapa,
+            'request_data' => $request->all(),
+            'user_id' => Auth::id()
+        ]);
+
         $request->validate([
             'transicao_id' => 'nullable|exists:transicao_etapas,id',
             'status_id' => 'required|exists:status,id',
             'etapa_destino_id' => 'nullable|exists:etapa_fluxo,id',
-            'tipo_operacao' => 'required|in:alterar_status,iniciar_etapa,manter_status,voltar_etapa,reativar_etapa',
+            'tipo_operacao' => 'required|in:alterar_status,iniciar_etapa,manter_status,voltar_etapa,reativar_etapa,finalizar_projeto',
             'observacoes' => 'nullable|string|max:1000'
         ]);
 
@@ -1564,11 +1811,16 @@ class ExecucaoEtapaController extends Controller
             $user = Auth::user();
             
             // Verificar se o usuário pode executar transições
+            // PARANACIDADE sempre pode executar transições (independente de ser solicitante)
+            $organizacaoParanacidade = \App\Models\Organizacao::where('tipo', 'PARANACIDADE')->first();
+            $isPARANACIDADE = ($organizacaoParanacidade && $user->organizacao_id === $organizacaoParanacidade->id);
+            
             if (!$user->hasRole(['admin', 'admin_paranacidade']) && 
-                $user->organizacao_id !== $execucao->etapaFluxo->organizacao_solicitante_id) {
+                $user->organizacao_id !== $execucao->etapaFluxo->organizacao_solicitante_id &&
+                !$isPARANACIDADE) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Apenas a organização solicitante pode escolher o destino da etapa'
+                    'message' => 'Apenas a organização solicitante ou PARANACIDADE pode escolher o destino da etapa'
                 ], 403);
             }
 
@@ -1585,6 +1837,108 @@ class ExecucaoEtapaController extends Controller
 
             // Buscar o novo status
             $novoStatus = Status::findOrFail($request->status_id);
+            
+            // === TRATAMENTO ESPECIAL PARA FINALIZAÇÃO DE PROJETO ===
+            if ($request->tipo_operacao === 'finalizar_projeto') {
+                \Log::info('FINALIZAR PROJETO: Bloco de finalização iniciado.', ['request' => $request->all()]);
+
+                $acao = $execucao->acao;
+                
+                // Verificar se pode finalizar
+                if ($acao->isFinalizado()) {
+                    \Log::warning('FINALIZAR PROJETO: Tentativa de finalizar projeto já finalizado.', ['acao_id' => $acao->id]);
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'O projeto já está finalizado.'
+                    ], 400);
+                }
+
+                if (!$acao->isNaUltimaEtapa()) {
+                    \Log::warning('FINALIZAR PROJETO: Tentativa de finalizar fora da última etapa.', ['acao_id' => $acao->id]);
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Só é possível finalizar o projeto na última etapa do fluxo.'
+                    ], 400);
+                }
+
+                // Verificar se o status escolhido é FINALIZADO
+                if ($novoStatus->codigo !== 'FINALIZADO') {
+                    \Log::warning('FINALIZAR PROJETO: Status escolhido não é FINALIZADO.', ['status_codigo' => $novoStatus->codigo]);
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Para finalizar o projeto, é necessário usar o status FINALIZADO.'
+                    ], 400);
+                }
+
+                DB::beginTransaction();
+                \Log::info('FINALIZAR PROJETO: Transação iniciada.');
+                try {
+                    // 1. Marcar etapa atual como concluída com status FINALIZADO
+                    $statusAnterior = $execucao->status;
+                    $execucao->update([
+                        'status_id' => $novoStatus->id,
+                        'data_conclusao' => now(),
+                        'observacoes' => $request->observacoes,
+                        'updated_by' => $user->id
+                    ]);
+                    \Log::info('FINALIZAR PROJETO: Execução da etapa atual marcada como concluída.', ['execucao_id' => $execucao->id]);
+
+                    // 2. Finalizar o projeto usando o método do modelo
+                    \Log::info('FINALIZAR PROJETO: Chamando $acao->finalizar()...', ['acao_id' => $acao->id]);
+                    $acao->finalizar($user, $request->observacoes);
+                    \Log::info('FINALIZAR PROJETO: Método $acao->finalizar() concluído.');
+
+                    // 3. Registrar no histórico
+                    HistoricoEtapa::create([
+                        'execucao_etapa_id' => $execucao->id,
+                        'usuario_id' => $user->id,
+                        'status_anterior_id' => $statusAnterior->id,
+                        'status_novo_id' => $novoStatus->id,
+                        'acao' => 'FINALIZACAO_PROJETO',
+                        'descricao_acao' => "Projeto finalizado - Etapa concluída com status FINALIZADO",
+                        'observacao' => $request->observacoes,
+                        'dados_alterados' => json_encode([
+                            'status_anterior' => $statusAnterior->nome,
+                            'status_novo' => $novoStatus->nome,
+                            'tipo_operacao' => 'finalizar_projeto',
+                            'projeto_finalizado' => true,
+                            'data_finalizacao' => now()->toDateTimeString()
+                        ]),
+                        'ip_usuario' => request()->ip(),
+                        'user_agent' => request()->userAgent()
+                    ]);
+                    \Log::info('FINALIZAR PROJETO: Histórico registrado.');
+
+                    DB::commit();
+                    \Log::info('FINALIZAR PROJETO: Transação commitada com sucesso!');
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Projeto finalizado com sucesso! O projeto não poderá mais ser alterado.',
+                        'projeto_finalizado' => true,
+                        'data_finalizacao' => $acao->fresh()->data_finalizacao->format('d/m/Y H:i'),
+                        'usuario_finalizacao' => $user->name
+                    ]);
+
+                } catch (\Exception $e) {
+                    DB::rollback();
+                    \Log::error('Erro ao finalizar projeto', [
+                        'execucao_id' => $execucao->id,
+                        'acao_id' => $acao->id,
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage()
+                    ]);
+                    
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Erro ao finalizar projeto: ' . $e->getMessage()
+                    ], 500);
+                }
+                
+                // IMPORTANTE: Quando projeto é finalizado, interromper execução aqui
+                // Não deve continuar o fluxo nem criar novas etapas
+                return;
+            }
             
             // Buscar etapa destino apenas se for para iniciar nova etapa
             $etapaDestino = null;
@@ -2269,5 +2623,276 @@ class ExecucaoEtapaController extends Controller
         ]);
 
         return true;
+    }
+
+    /**
+     * Reativar projeto finalizado (apenas admins)
+     */
+    public function reativarProjetoFinalizado(Request $request, Acao $acao)
+    {
+        $request->validate([
+            'motivo_reativacao' => 'required|string|max:1000'
+        ]);
+
+        $user = Auth::user();
+
+        // Verificar se é admin
+        if (!$user->hasRole(['admin', 'admin_paranacidade'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Apenas administradores podem reativar projetos finalizados.'
+            ], 403);
+        }
+
+        // Verificar se o projeto está finalizado
+        if (!$acao->isFinalizado()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'O projeto não está finalizado.'
+            ], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Reativar o projeto
+            $sucesso = $acao->reabrir($user, $request->motivo_reativacao);
+            
+            if (!$sucesso) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Não foi possível reativar o projeto.'
+                ], 400);
+            }
+
+            // Buscar a última etapa executada para reativar
+            $ultimaExecucao = ExecucaoEtapa::where('acao_id', $acao->id)
+                ->whereHas('status', function($query) {
+                    $query->where('codigo', 'FINALIZADO');
+                })
+                ->with(['etapaFluxo', 'status'])
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($ultimaExecucao) {
+                // Reativar a última etapa (voltar para status anterior à finalização)
+                $statusPendente = Status::where('codigo', 'PENDENTE')->first();
+                $statusAnterior = $ultimaExecucao->status;
+                
+                $ultimaExecucao->update([
+                    'status_id' => $statusPendente->id,
+                    'data_conclusao' => null,
+                    'observacoes' => "REATIVADO PELO ADMIN: {$request->motivo_reativacao}",
+                    'updated_by' => $user->id
+                ]);
+
+                // Registrar no histórico
+                HistoricoEtapa::create([
+                    'execucao_etapa_id' => $ultimaExecucao->id,
+                    'usuario_id' => $user->id,
+                    'status_anterior_id' => $statusAnterior->id,
+                    'status_novo_id' => $statusPendente->id,
+                    'acao' => 'REATIVACAO_PROJETO',
+                    'descricao_acao' => "Projeto reativado pelo administrador - Status alterado de FINALIZADO para PENDENTE",
+                    'observacao' => $request->motivo_reativacao,
+                    'dados_alterados' => json_encode([
+                        'status_anterior' => $statusAnterior->nome,
+                        'status_novo' => $statusPendente->nome,
+                        'tipo_operacao' => 'reativar_projeto',
+                        'admin_responsavel' => $user->name,
+                        'data_reativacao' => now()->toDateTimeString()
+                    ]),
+                    'ip_usuario' => request()->ip(),
+                    'user_agent' => request()->userAgent()
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Projeto reativado com sucesso! O projeto pode ser editado novamente.',
+                'projeto_reativado' => true,
+                'etapa_reativada' => $ultimaExecucao ? $ultimaExecucao->etapaFluxo->nome_etapa : null,
+                'admin_responsavel' => $user->name
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            \Log::error('Erro ao reativar projeto finalizado', [
+                'acao_id' => $acao->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao reativar projeto: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Finalizar projeto completo - independente de etapas pendentes
+     * Usado quando etapas são puladas em fluxo condicional
+     */
+    public function finalizarProjetoCompleto(Request $request, Acao $acao)
+    {
+        // Verificar se o usuário pode acessar esta ação
+        if (!$this->canAccessAcao($acao)) {
+            abort(403, 'Acesso negado a esta ação.');
+        }
+
+        $user = Auth::user();
+
+        // Verificar se o projeto já está finalizado
+        if ($acao->is_finalizado) {
+            return response()->json([
+                'success' => false,
+                'error' => 'O projeto já está finalizado.'
+            ], 400);
+        }
+
+        // Verificar se está na última etapa do fluxo executado
+        if (!$acao->isNaUltimaEtapa()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Só é possível finalizar o projeto quando estiver na última etapa executada.'
+            ], 400);
+        }
+
+        // Verificar permissões (usuário deve poder interagir com alguma etapa do projeto)
+        $podeInteragir = false;
+        $etapasFluxo = EtapaFluxo::where('tipo_fluxo_id', $acao->tipo_fluxo_id)->get();
+        foreach ($etapasFluxo as $etapa) {
+            if ($this->podeInteragirComEtapa($acao, $etapa)) {
+                $podeInteragir = true;
+                break;
+            }
+        }
+
+        if (!$podeInteragir && !$user->hasRole(['admin', 'admin_paranacidade'])) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Você não tem permissão para finalizar este projeto.'
+            ], 403);
+        }
+
+        $observacao = $request->input('observacao', 'Projeto finalizado manualmente');
+
+        DB::beginTransaction();
+        try {
+            // 1. Buscar todas as etapas do fluxo
+            $todasEtapas = EtapaFluxo::where('tipo_fluxo_id', $acao->tipo_fluxo_id)
+                ->orderBy('ordem_execucao')
+                ->get();
+
+            // 2. Buscar todas as execuções existentes
+            $execucoesExistentes = ExecucaoEtapa::where('acao_id', $acao->id)
+                ->with('status')
+                ->get()
+                ->keyBy('etapa_fluxo_id');
+
+            // 3. Buscar status "Não Aplicável" para etapas puladas
+            $statusNaoAplicavel = Status::where('codigo', 'NAO_APLICAVEL')->first();
+            if (!$statusNaoAplicavel) {
+                // Criar o status se não existir
+                $statusNaoAplicavel = Status::create([
+                    'nome' => 'Não Aplicável',
+                    'codigo' => 'NAO_APLICAVEL',
+                    'descricao' => 'Etapa não aplicável no fluxo condicional',
+                    'categoria' => 'GERAL',
+                    'cor' => '#6c757d',
+                    'icone' => 'fas fa-minus-circle',
+                    'is_ativo' => true,
+                    'ordem' => 99
+                ]);
+            }
+
+            // 4. Marcar etapas não executadas como "Não Aplicável"
+            $etapasPuladas = 0;
+            foreach ($todasEtapas as $etapa) {
+                $execucao = $execucoesExistentes->get($etapa->id);
+                
+                if (!$execucao) {
+                    // Etapa não foi executada - criar execução como "Não Aplicável"
+                    ExecucaoEtapa::create([
+                        'acao_id' => $acao->id,
+                        'etapa_fluxo_id' => $etapa->id,
+                        'status_id' => $statusNaoAplicavel->id,
+                        'usuario_responsavel_id' => $user->id,
+                        'data_inicio' => now(),
+                        'data_conclusao' => now(),
+                        'observacoes' => 'Etapa marcada como não aplicável na finalização do projeto',
+                        'created_by' => $user->id,
+                        'updated_by' => $user->id
+                    ]);
+                    $etapasPuladas++;
+                }
+            }
+
+            // 5. Finalizar o projeto
+            $acao->update([
+                'is_finalizado' => true,
+                'data_finalizacao' => now(),
+                'usuario_finalizacao_id' => $user->id,
+                'observacao_finalizacao' => "{$observacao} | {$etapasPuladas} etapas marcadas como não aplicáveis",
+                'status' => 'FINALIZADO',
+                'updated_by' => $user->id
+            ]);
+
+            // 6. Registrar no histórico da última etapa executada
+            $ultimaExecucao = $execucoesExistentes->where('status.codigo', '!=', 'NAO_APLICAVEL')->last();
+            if ($ultimaExecucao) {
+                HistoricoEtapa::create([
+                    'execucao_etapa_id' => $ultimaExecucao->id,
+                    'usuario_id' => $user->id,
+                    'status_anterior_id' => $ultimaExecucao->status_id,
+                    'status_novo_id' => $ultimaExecucao->status_id, // Mantém o mesmo status
+                    'acao' => 'FINALIZACAO_COMPLETA',
+                    'descricao_acao' => 'Projeto finalizado manualmente com etapas puladas',
+                    'observacao' => $observacao,
+                    'dados_alterados' => json_encode([
+                        'tipo_operacao' => 'finalizacao_completa',
+                        'etapas_puladas' => $etapasPuladas,
+                        'etapas_total' => $todasEtapas->count(),
+                        'usuario_finalizacao' => $user->name,
+                        'data_finalizacao' => now()->toDateTimeString()
+                    ]),
+                    'ip_usuario' => request()->ip(),
+                    'user_agent' => request()->userAgent()
+                ]);
+            }
+
+            DB::commit();
+
+            \Log::info('Projeto finalizado completamente', [
+                'acao_id' => $acao->id,
+                'user_id' => $user->id,
+                'etapas_total' => $todasEtapas->count(),
+                'etapas_puladas' => $etapasPuladas,
+                'observacao' => $observacao
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Projeto finalizado com sucesso! {$etapasPuladas} etapas foram marcadas como não aplicáveis.",
+                'etapas_puladas' => $etapasPuladas,
+                'etapas_total' => $todasEtapas->count()
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            \Log::error('Erro ao finalizar projeto completo', [
+                'acao_id' => $acao->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Erro ao finalizar projeto: ' . $e->getMessage()
+            ], 500);
+        }
     }
 } 

@@ -119,6 +119,23 @@
     background: linear-gradient(135deg, #f8f9ff 0%, #e8ecff 100%);
 }
 
+.opcao-finalizar {
+    border: 2px solid #dc3545;
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe6e6 100%);
+}
+
+.opcao-finalizar:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(220, 53, 69, 0.2);
+    border-color: #c82333;
+}
+
+.opcao-finalizar.selecionada {
+    border-color: #dc3545;
+    box-shadow: 0 8px 25px rgba(220, 53, 69, 0.4);
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe6e6 100%);
+}
+
 /* Ícone container */
 .icon-container {
     width: 40px;
@@ -179,6 +196,16 @@
     border-radius: 20px;
     font-size: 0.8rem;
     font-weight: 600;
+}
+
+.badge-finalizar {
+    background: linear-gradient(135deg, #dc3545, #e91e63);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
 }
 
 .status-badge {
@@ -308,19 +335,23 @@ function renderizarOpcoes(opcoes) {
     
     opcoes.forEach((opcao, index) => {
         // Determinar classes CSS baseadas no tipo de operação
-        const classeOperacao = opcao.tipo_operacao === 'iniciar_etapa' ? 'opcao-nova-etapa' :
+        const classeOperacao = opcao.tipo_operacao === 'finalizar_projeto' ? 'opcao-finalizar' :
+                               opcao.tipo_operacao === 'iniciar_etapa' ? 'opcao-nova-etapa' :
                                opcao.tipo_operacao === 'manter_status' ? 'opcao-manter-status' : 'opcao-alterar-status';
         
-        const classeBadge = opcao.tipo_operacao === 'iniciar_etapa' ? 'badge-nova-etapa' :
+        const classeBadge = opcao.tipo_operacao === 'finalizar_projeto' ? 'badge-finalizar' :
+                           opcao.tipo_operacao === 'iniciar_etapa' ? 'badge-nova-etapa' :
                            opcao.tipo_operacao === 'manter_status' ? 'badge-manter-status' : 'badge-alterar-status';
         
         const classeIcone = opcao.tipo_operacao === 'iniciar_etapa' ? 'icone-nova-etapa' :
                            opcao.tipo_operacao === 'manter_status' ? 'icone-manter-status' : 'icone-alterar-status';
         
-        const icone = opcao.tipo_operacao === 'iniciar_etapa' ? 'fa-arrow-right' :
+        const icone = opcao.tipo_operacao === 'finalizar_projeto' ? 'fa-flag-checkered' :
+                     opcao.tipo_operacao === 'iniciar_etapa' ? 'fa-arrow-right' :
                      opcao.tipo_operacao === 'manter_status' ? 'fa-redo' : 'fa-edit';
         
-        const textoBadge = opcao.tipo_operacao === 'iniciar_etapa' ? 'Nova Etapa' :
+        const textoBadge = opcao.tipo_operacao === 'finalizar_projeto' ? 'Finalizar Projeto' :
+                          opcao.tipo_operacao === 'iniciar_etapa' ? 'Nova Etapa' :
                           opcao.tipo_operacao === 'manter_status' ? 'Manter Status' : 'Alterar Status';
         
         // Determinar cor do status
@@ -329,7 +360,13 @@ function renderizarOpcoes(opcoes) {
         const opcaoHtml = `
             <div class="col-md-6 mb-4">
                 <div class="card opcao-card ${classeOperacao} h-100" onclick="selecionarOpcao(${index})" 
-                     style="border-left: 5px solid ${corStatus};">
+                     style="border-left: 5px solid ${corStatus};"
+                     data-transicao-id="${opcao.transicao_id || ''}"
+                     data-status-id="${opcao.status_id || ''}"
+                     data-etapa-destino-id="${opcao.etapa_destino_id || ''}"
+                     data-tipo-operacao="${opcao.tipo_operacao || ''}"
+                     data-etapa-destino-nome="${opcao.etapa_destino_nome || ''}"
+                     data-status-nome="${opcao.status_nome || ''}">
                     <input type="radio" name="opcaoTransicao" value="${index}" 
                            data-opcao='${JSON.stringify(opcao)}' onchange="habilitarBotao()" style="display: none;">
                     
@@ -407,36 +444,28 @@ function habilitarBotao() {
 
 // Executar transição
 function executarTransicao() {
-    const opcaoSelecionada = document.querySelector('input[name="opcaoTransicao"]:checked');
-    if (!opcaoSelecionada) {
-        Swal.fire({
-            title: 'Atenção!',
-            text: 'Por favor, selecione uma opção para continuar',
-            icon: 'warning',
-            confirmButtonColor: '#667eea'
-        });
+    const $selectedCard = $('.opcao-card.selecionada');
+    if ($selectedCard.length === 0) {
+        Swal.fire('Atenção', 'Por favor, selecione uma opção de direcionamento.', 'warning');
         return;
     }
 
-    const observacoes = document.getElementById('observacoesTransicao').value;
-    const opcaoData = JSON.parse(opcaoSelecionada.getAttribute('data-opcao'));
-    
-    // Determinar texto da confirmação baseado no tipo de operação
-    let tituloConfirmacao = 'Confirmar Direcionamento';
-    let textoConfirmacao = '';
-    
-    if (opcaoData.tipo_operacao === 'iniciar_etapa') {
-        textoConfirmacao = `Deseja direcionar o processo para a etapa "${opcaoData.etapa_destino_nome}" com status "${opcaoData.status_nome}"?`;
-    } else if (opcaoData.tipo_operacao === 'manter_status') {
-        textoConfirmacao = `Deseja manter o status atual "${opcaoData.status_nome}" para reprocessamento?`;
-    } else {
-        textoConfirmacao = `Deseja alterar o status para "${opcaoData.status_nome}"?`;
+    const transicaoId = $selectedCard.data('transicao-id');
+    const statusId = $selectedCard.data('status-id');
+    const etapaDestinoId = $selectedCard.data('etapa-destino-id');
+    let tipoOperacao = $selectedCard.data('tipo-operacao'); 
+    const observacoes = $('#observacoesTransicao').val();
+
+    if (transicaoId === 'finalizar') {
+        tipoOperacao = 'finalizar_projeto';
     }
-    
-    // Confirmar ação
+
+    console.log("Dados para envio:", { transicaoId, statusId, etapaDestinoId, tipoOperacao });
+
+    // Exibe um alerta de confirmação customizado
     Swal.fire({
-        title: tituloConfirmacao,
-        text: textoConfirmacao,
+        title: 'Confirmar Direcionamento',
+        text: `Deseja direcionar o processo para a etapa "${$selectedCard.data('etapa-destino-nome')}" com status "${$selectedCard.data('status-nome')}" e tipo de operação "${tipoOperacao}"?`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#667eea',
@@ -464,10 +493,10 @@ function executarTransicao() {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                 },
                 body: JSON.stringify({
-                    transicao_id: opcaoData.transicao_id,
-                    status_id: opcaoData.status_id,
-                    etapa_destino_id: opcaoData.etapa_destino_id,
-                    tipo_operacao: opcaoData.tipo_operacao,
+                    transicao_id: transicaoId === 'finalizar' ? null : transicaoId,
+                    status_id: statusId,
+                    etapa_destino_id: etapaDestinoId,
+                    tipo_operacao: tipoOperacao,
                     observacoes: observacoes
                 })
             })
